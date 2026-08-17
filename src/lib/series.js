@@ -104,6 +104,27 @@ export async function buildIndexedSeries(series, anchorISO, range) {
   return { data, keys: base.keys }
 }
 
+// Computed "nitrogen margin": (A - coeffB*B) on common dates, plus its expanding
+// (cumulative) average. Mirrors the Excel "Urea Price − 0.58×Ammonia" chart.
+export async function buildNitrogenSpread(a, b, anchorISO, range, coeffB = 0.58, spreadLabel = 'Spread') {
+  const from = rangeStart(anchorISO, range)
+  const obs = await fetchObservations([a.instrumentId, b.instrumentId], from)
+  const ma = new Map((obs.get(a.instrumentId) || []).map((p) => [p.date, p.value]))
+  const mb = new Map((obs.get(b.instrumentId) || []).map((p) => [p.date, p.value]))
+  const dates = Array.from(ma.keys()).filter((d) => mb.has(d)).sort()
+
+  let cum = 0
+  let n = 0
+  const full = dates.map((date) => {
+    const v = ma.get(date) - coeffB * mb.get(date)
+    cum += v
+    n += 1
+    return { date, [spreadLabel]: v, 'Moving average': cum / n }
+  })
+  const ds = downsample(full)
+  return { data: ds, keys: [spreadLabel, 'Moving average'] }
+}
+
 // Spread A - B on dates where both exist.
 export async function buildSpreadSeries(a, b, anchorISO, range, label) {
   const from = rangeStart(anchorISO, range)

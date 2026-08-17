@@ -33,6 +33,8 @@ CATALOG = [
     ('Fertiliser Prices USD', V, 'ALL', [('Urea Black Sea Spot USD','USD'),('Ammonia Caribbean Spot USD','USD')]),
     ('Ammonium Nitrate USD', V, 'ALL', [('Ukraine Ammonium Nitrate Fertilizer USD','USD'),('Black Sea Ammonium Nitrate Fertilizer USD','USD'),('Germany Calcium Ammonium Nitrate Fertilizer USD','USD')]),
     ('Ammonium Nitrate ZAR', V, 'ALL', [('Ukraine Ammonium Nitrate Fertilizer ZAR','ZAR'),('Black Sea Ammonium Nitrate Fertilizer ZAR','ZAR'),('Germany Calcium Ammonium Nitrate Fertilizer ZAR','ZAR')]),
+    ('Ammonium Nitrate ZAR (Urea − 0.58×Ammonia)', 'nitrogen_spread', 'ALL', ('spread', ('Urea Black Sea Spot ZAR','ZAR'), ('Ammonia Caribbean Spot ZAR','ZAR')),
+        'Urea Black Sea Spot minus 0.58× Ammonia Caribbean Spot (ZAR) — a nitrogen-margin proxy — with its cumulative average.'),
 
     ('SA Electricity Price Index', V, 'ALL', [('SA ELECTRICITY PRICE INDEX','')]),
     ('Energy Prices (Indexed)', I, 'ALL', [('Brent Crude Oil','USD'),('Natural Gas (Henry Hub)','USD'),('EU Carbon Prices','USD'),('Thermal Coal','USD')]),
@@ -98,7 +100,7 @@ def main():
     for entry in CATALOG:
         title, typ, rng, series = entry[0], entry[1], entry[2], entry[3]
         pairs = []
-        if typ == 'spread':
+        if typ in ('spread', 'nitrogen_spread'):
             pairs = [series[1], series[2]]
         else:
             pairs = series
@@ -153,7 +155,7 @@ create policy p_chart_series_all on pack.chart_series for all to anon, authentic
         annot = entry[4] if len(entry) > 4 else None
         annot_sql = f"'{esc(annot)}'" if annot else 'null'
         rows = []
-        if typ == 'spread':
+        if typ in ('spread', 'nitrogen_spread'):
             _, a, b = series
             rows.append((a[0], a[1], 'spread_a', 0))
             rows.append((b[0], b[1], 'spread_b', 1))

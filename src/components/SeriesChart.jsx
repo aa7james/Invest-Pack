@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts'
-import { buildValueSeries, buildSpreadSeries, buildIndexedSeries } from '../lib/series'
+import { buildValueSeries, buildSpreadSeries, buildIndexedSeries, buildNitrogenSpread } from '../lib/series'
 import { fmtNum } from '../lib/format'
 
 export const CHART_COLORS = [
@@ -38,7 +38,17 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
     ;(async () => {
       try {
         let res
-        if (def.chart_type === 'spread') {
+        if (def.chart_type === 'nitrogen_spread') {
+          const a = def.series.find((s) => s.role === 'spread_a')
+          const b = def.series.find((s) => s.role === 'spread_b')
+          const an = instrumentsById.get(a?.instrument_id)
+          const bn = instrumentsById.get(b?.instrument_id)
+          const label = `${(an?.name || 'A').split(' ')[0]} − 0.58×${(bn?.name || 'B').split(' ')[0]}`
+          res = await buildNitrogenSpread(
+            { instrumentId: a.instrument_id }, { instrumentId: b.instrument_id },
+            anchorISO, range, 0.58, label,
+          )
+        } else if (def.chart_type === 'spread') {
           const a = def.series.find((s) => s.role === 'spread_a')
           const b = def.series.find((s) => s.role === 'spread_b')
           const an = instrumentsById.get(a?.instrument_id)

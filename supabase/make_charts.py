@@ -17,6 +17,12 @@ from _gen_charts import CATALOG, KNOWN  # noqa: E402
 URL = 'https://knciqlbngtmsgmhnbfce.supabase.co'
 KEY = 'sb_publishable_YwMLfMra6vzUnfvkn9uqTw_akegqlYp'
 
+# Windows consoles default to cp1252 and choke on characters like "−"; make prints safe.
+try:
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+except Exception:
+    pass
+
 
 def api(method, path, body=None, prefer=None):
     headers = {
@@ -62,7 +68,7 @@ def main():
         cid = chart[0]['id']
 
         rows = []
-        if typ == 'spread':
+        if typ in ('spread', 'nitrogen_spread'):
             _, a, b = series
             rows.append({'chart_id': cid, 'instrument_id': lookup[(a[0], a[1])], 'role': 'spread_a', 'sort_order': 0})
             rows.append({'chart_id': cid, 'instrument_id': lookup[(b[0], b[1])], 'role': 'spread_b', 'sort_order': 1})
