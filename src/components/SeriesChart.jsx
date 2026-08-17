@@ -11,8 +11,8 @@ export const CHART_COLORS = [
 ]
 
 function axisDate(iso) {
-  const [y, m] = String(iso).split('-')
-  return `${m}/${y.slice(2)}`
+  // Data spans many years, so label the axis by year only.
+  return String(iso).slice(0, 4)
 }
 
 // Build unique, human-readable keys for a chart's series.
@@ -81,7 +81,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           <LineChart data={state.data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
             <CartesianGrid stroke="#2a3550" strokeDasharray="3 3" />
             <XAxis dataKey="date" tickFormatter={axisDate} tick={{ fill: '#93a0bd', fontSize: 11 }}
-              minTickGap={40} stroke="#2a3550" />
+              minTickGap={60} stroke="#2a3550" />
             <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
               tickFormatter={(v) => fmtNum(v)} width={70} />
             <Tooltip
