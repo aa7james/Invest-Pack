@@ -120,6 +120,12 @@ grant select on all tables in schema pack to anon, authenticated;
 grant insert on pack.data_update_requests to anon, authenticated;
 grant usage, select on all sequences in schema pack to anon, authenticated;
 
+-- The secret key (service_role, used by the watcher/loader) needs full access to
+-- the pack schema. It bypasses RLS but still needs GRANTs on a custom schema.
+grant usage on schema pack to service_role;
+grant all on all tables in schema pack to service_role;
+grant all on all sequences in schema pack to service_role;
+
 alter table pack.instruments           enable row level security;
 alter table pack.pack_data             enable row level security;
 alter table pack.data_update_requests  enable row level security;
