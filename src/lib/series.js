@@ -85,6 +85,25 @@ export async function buildValueSeries(series, anchorISO, range) {
   return { data, keys: series.map((s) => s.key) }
 }
 
+// Like buildValueSeries but rebases each series to 100 at its first value in range.
+export async function buildIndexedSeries(series, anchorISO, range) {
+  const base = await buildValueSeries(series, anchorISO, range)
+  const firsts = {}
+  for (const k of base.keys) {
+    for (const row of base.data) {
+      if (row[k] != null) { firsts[k] = row[k]; break }
+    }
+  }
+  const data = base.data.map((row) => {
+    const r = { date: row.date }
+    for (const k of base.keys) {
+      r[k] = (row[k] != null && firsts[k]) ? (row[k] / firsts[k]) * 100 : null
+    }
+    return r
+  })
+  return { data, keys: base.keys }
+}
+
 // Spread A - B on dates where both exist.
 export async function buildSpreadSeries(a, b, anchorISO, range, label) {
   const from = rangeStart(anchorISO, range)

@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts'
-import { buildValueSeries, buildSpreadSeries } from '../lib/series'
+import { buildValueSeries, buildSpreadSeries, buildIndexedSeries } from '../lib/series'
 import { fmtNum } from '../lib/format'
 
 export const CHART_COLORS = [
@@ -50,10 +50,10 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           )
         } else {
           const withKeys = keysFor(def.series, instrumentsById)
-          res = await buildValueSeries(
-            withKeys.map((s) => ({ key: s.key, instrumentId: s.instrument_id })),
-            anchorISO, range,
-          )
+          const args = [withKeys.map((s) => ({ key: s.key, instrumentId: s.instrument_id })), anchorISO, range]
+          res = def.chart_type === 'index'
+            ? await buildIndexedSeries(...args)
+            : await buildValueSeries(...args)
         }
         if (!alive) return
         const last = {}

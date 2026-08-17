@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import TimeRange from './TimeRange'
 import SeriesChart from './SeriesChart'
+import Lazy from './Lazy'
 import { updateChart, deleteChart } from '../lib/charts'
 
 function ChartCard({ chart, instrumentsById, anchorISO, onChanged }) {
@@ -35,8 +36,10 @@ function ChartCard({ chart, instrumentsById, anchorISO, onChanged }) {
         </div>
       </div>
       <TimeRange value={range} onChange={changeRange} />
-      <SeriesChart def={chart} range={range} anchorISO={anchorISO}
-        instrumentsById={instrumentsById} height={260} />
+      <Lazy height={260}>
+        <SeriesChart def={chart} range={range} anchorISO={anchorISO}
+          instrumentsById={instrumentsById} height={260} />
+      </Lazy>
     </div>
   )
 }

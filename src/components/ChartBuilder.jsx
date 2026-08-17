@@ -54,7 +54,7 @@ export default function ChartBuilder({ instruments, instrumentsById, anchorISO, 
     }
     if (!valueIds.length) return null
     return {
-      chart_type: 'value',
+      chart_type: mode === 'index' ? 'index' : 'value',
       series: valueIds.map((id, i) => ({ instrument_id: id, role: 'series', sort_order: i })),
     }
   }, [mode, valueIds, spreadA, spreadB])
@@ -105,10 +105,11 @@ export default function ChartBuilder({ instruments, instrumentsById, anchorISO, 
 
         <div className="seg">
           <button className={mode === 'value' ? 'on' : ''} onClick={() => setMode('value')}>Value</button>
-          <button className={mode === 'spread' ? 'on' : ''} onClick={() => setMode('spread')}>Spread (A − B)</button>
+          <button className={mode === 'index' ? 'on' : ''} onClick={() => setMode('index')}>Index =100</button>
+          <button className={mode === 'spread' ? 'on' : ''} onClick={() => setMode('spread')}>Spread</button>
         </div>
 
-        {mode === 'value' ? (
+        {mode !== 'spread' ? (
           <>
             <InstrumentSelect instruments={instruments} value={pick} onChange={setPick} />
             <button className="btn" onClick={addValue} disabled={!pick}>+ Add to Chart</button>
