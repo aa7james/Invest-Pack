@@ -1,0 +1,20 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+
+# local env files (NEVER commit secrets)
+.env
+.env.local
+.env.*.local
+
+# watcher secrets on the Bloomberg PC — MUST never be committed
+watcher/.env
+watcher/secrets.py
+
+# editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
