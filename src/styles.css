@@ -265,12 +265,24 @@ a { color: var(--accent); }
   border-radius: 8px; padding: 10px; font-size: 13px; font-family: var(--font);
 }
 
-/* Print: only the pack, no chrome */
+/* Pack title header (shown on screen and in print) */
+.pack-title h2 { margin: 0; font-size: 22px; }
+.pack-title .muted { font-size: 13px; margin-top: 2px; }
+
+/* Print: only the pack, keep the dark theme */
 @media print {
-  body { background: #fff; color: #000; }
+  @page { size: A4 portrait; margin: 12mm; }
+  html, body {
+    background: var(--bg) !important;
+    color: var(--text) !important;
+  }
+  /* Force backgrounds/colors to actually render in the PDF */
+  html, body, .app, .panel, .pack-item, .annotation,
+  .card-chart, .chart-legend, svg, .recharts-surface {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
   .no-print { display: none !important; }
   .app { max-width: none; padding: 0; }
-  .panel, .pack-item { border-color: #ccc; background: #fff; page-break-inside: avoid; }
-  .annotation { border-color: #ccc; background: #fff; color: #000; }
-  .chart-legend .leg, .chart-legend .leg strong { color: #000; }
+  .pack-item { page-break-inside: avoid; margin-bottom: 20px; }
 }

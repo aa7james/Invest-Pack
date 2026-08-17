@@ -27,7 +27,7 @@ function PackItem({ chart, index, count, instrumentsById, anchorISO, onChanged, 
       </div>
       <h3>{chart.title}</h3>
       <SeriesChart def={chart} range={chart.time_range || '1Y'} anchorISO={anchorISO}
-        instrumentsById={instrumentsById} height={300} />
+        instrumentsById={instrumentsById} height={420} />
       <textarea
         className="annotation"
         placeholder="Add a comment for the pack…"
@@ -71,11 +71,21 @@ export default function InvestmentPack({ charts, instrumentsById, anchorISO, onC
     )
   }
 
+  const today = new Date().toLocaleDateString(undefined, { day: 'numeric', month: 'long', year: 'numeric' })
+
   return (
     <div className="pack-print">
-      <div className="pack-head no-print">
-        <div className="muted">{packCharts.length} chart{packCharts.length > 1 ? 's' : ''} — use ↑/↓ to reorder</div>
-        <button className="btn" onClick={() => window.print()}>⬇ Download PDF</button>
+      <div className="pack-head pack-title">
+        <div>
+          <h2>Drivers — Investment Pack</h2>
+          <div className="muted">Aylett &amp; Co · {today}</div>
+        </div>
+        <div className="card-actions no-print">
+          <span className="muted small" style={{ alignSelf: 'center' }}>
+            {packCharts.length} charts — use ↑/↓ to reorder
+          </span>
+          <button className="btn" onClick={() => window.print()}>⬇ Download PDF</button>
+        </div>
       </div>
       {packCharts.map((c, i) => (
         <PackItem key={c.id} chart={c} index={i} count={packCharts.length}
