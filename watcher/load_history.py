@@ -111,22 +111,13 @@ def main():
     print(f"Reading Excel:\n  {excel_path}")
     wb = openpyxl.load_workbook(excel_path, read_only=True, data_only=True)
 
-    rows_buffer = []
-    total = 0
     unmatched = set()
     date_min, date_max = None, None
 
-    def flush():
-        nonlocal rows_buffer, total
-        if not rows_buffer:
-            return
-        api("POST", url, key,
-            "/rest/v1/pack_data?on_conflict=instrument_id,obs_date",
-            body=rows_buffer,
-            extra_headers={"Prefer": "resolution=merge-duplicates,return=minimal"})
-        total += len(rows_buffer)
-        print(f"  ...loaded {total:,} datapoints")
-        rows_buffer = []
+    # Accumulate into a dict keyed by (instrument_id, obs_date) so any duplicate
+    # date rows in the Excel collapse to one value (last one wins). This avoids
+    # the "ON CONFLICT ... cannot affect row a second time" error entirely.
+    acc = {}
 
     for sheet, cat in CAT_MAP.items():
         if sheet not in wb.sheetnames:
@@ -158,11 +149,21 @@ def main():
                 if iid is None:
                     unmatched.add(key_tuple)
                     continue
-                rows_buffer.append({"instrument_id": iid, "obs_date": iso, "value": float(v)})
-                if len(rows_buffer) >= BATCH:
-                    flush()
+                acc[(iid, iso)] = float(v)
 
-    flush()
+    print(f"Prepared {len(acc):,} unique datapoints. Uploading...")
+
+    all_rows = [{"instrument_id": iid, "obs_date": iso, "value": val}
+                for (iid, iso), val in acc.items()]
+    total = 0
+    for i in range(0, len(all_rows), BATCH):
+        batch = all_rows[i:i + BATCH]
+        api("POST", url, key,
+            "/rest/v1/pack_data?on_conflict=instrument_id,obs_date",
+            body=batch,
+            extra_headers={"Prefer": "resolution=merge-duplicates,return=minimal"})
+        total += len(batch)
+        print(f"  ...loaded {total:,} / {len(all_rows):,}")
 
     if unmatched:
         print(f"\nWARNING: {len(unmatched)} series columns had no matching instrument (skipped):")
