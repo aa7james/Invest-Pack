@@ -1,42 +1,46 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
-  fetchInstruments,
-  fetchLatestValues,
-  fetchSummary,
-  fetchLatestRequest,
-  queueRefresh,
-  fetchRequestById,
+  fetchInstruments, fetchLatestValues, fetchSummary, fetchLatestRequest,
+  queueRefresh, fetchRequestById,
 } from './lib/data'
+import { fetchCharts } from './lib/charts'
 import { fmtTimestamp } from './lib/format'
 import SummaryCards from './components/SummaryCards'
 import InstrumentTable from './components/InstrumentTable'
+import ChartBuilder from './components/ChartBuilder'
+import MyCharts from './components/MyCharts'
+import InvestmentPack from './components/InvestmentPack'
 
-// How long to poll a queued refresh before telling the user it's still pending.
 const POLL_MS = 3000
 const POLL_TIMEOUT_MS = 30000
+
+const TABS = [
+  { key: 'overview', label: 'Overview' },
+  { key: 'builder', label: 'Chart Builder' },
+  { key: 'mycharts', label: 'My Charts' },
+  { key: 'pack', label: 'Investment Pack' },
+]
 
 export default function App() {
   const [instruments, setInstruments] = useState([])
   const [latest, setLatest] = useState(new Map())
   const [summary, setSummary] = useState(null)
   const [lastRequest, setLastRequest] = useState(null)
+  const [charts, setCharts] = useState([])
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [banner, setBanner] = useState(null) // { kind, text }
+  const [banner, setBanner] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [tab, setTab] = useState('overview')
 
   const pollTimer = useRef(null)
 
-  // Re-read everything from Supabase.
   const loadAll = useCallback(async () => {
     setError(null)
     try {
       const [insts, lv, sum, req] = await Promise.all([
-        fetchInstruments(),
-        fetchLatestValues(),
-        fetchSummary(),
-        fetchLatestRequest(),
+        fetchInstruments(), fetchLatestValues(), fetchSummary(), fetchLatestRequest(),
       ])
       setInstruments(insts)
       setLatest(lv)
@@ -47,6 +51,12 @@ export default function App() {
     } finally {
       setLoading(false)
     }
+    // Charts tables may not exist yet — tolerate that so the rest of the app works.
+    try { setCharts(await fetchCharts()) } catch { setCharts([]) }
+  }, [])
+
+  const reloadCharts = useCallback(async () => {
+    try { setCharts(await fetchCharts()) } catch { setCharts([]) }
   }, [])
 
   useEffect(() => {
@@ -54,50 +64,31 @@ export default function App() {
     return () => { if (pollTimer.current) clearInterval(pollTimer.current) }
   }, [loadAll])
 
-  // Queue a refresh request, then poll it until the watcher finishes it.
   const onRefresh = useCallback(async (mode) => {
     setRefreshing(true)
     setBanner({ kind: 'info', text: 'Queuing refresh request…' })
     try {
       const req = await queueRefresh(mode)
-      setBanner({
-        kind: 'info',
-        text: `Refresh queued (request #${req.id}, ${mode}). Waiting for the Bloomberg watcher to pick it up…`,
-      })
-
+      setBanner({ kind: 'info', text: `Refresh queued (request #${req.id}). Waiting for the Bloomberg watcher…` })
       const startedAt = Date.now()
       if (pollTimer.current) clearInterval(pollTimer.current)
       pollTimer.current = setInterval(async () => {
         try {
-          const latestReq = await fetchRequestById(req.id)
-          setLastRequest(latestReq)
-
-          if (latestReq.status === 'done') {
-            clearInterval(pollTimer.current)
-            setRefreshing(false)
-            setBanner({
-              kind: 'good',
-              text: `Refresh complete — ${latestReq.rows_written ?? 0} rows written.`,
-            })
+          const r = await fetchRequestById(req.id)
+          setLastRequest(r)
+          if (r.status === 'done') {
+            clearInterval(pollTimer.current); setRefreshing(false)
+            setBanner({ kind: 'good', text: `Refresh complete — ${r.rows_written ?? 0} rows written.` })
             await loadAll()
-          } else if (latestReq.status === 'error') {
-            clearInterval(pollTimer.current)
-            setRefreshing(false)
-            setBanner({ kind: 'bad', text: `Refresh failed: ${latestReq.message || 'unknown error'}` })
+          } else if (r.status === 'error') {
+            clearInterval(pollTimer.current); setRefreshing(false)
+            setBanner({ kind: 'bad', text: `Refresh failed: ${r.message || 'unknown error'}` })
           } else if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
-            clearInterval(pollTimer.current)
-            setRefreshing(false)
-            setBanner({
-              kind: 'warn',
-              text:
-                `Request #${req.id} is still "${latestReq.status}". The watcher on the Bloomberg PC ` +
-                `will process it (runs ~every minute). This dashboard will show the data once it lands — ` +
-                `hit "Reload view" then.`,
-            })
+            clearInterval(pollTimer.current); setRefreshing(false)
+            setBanner({ kind: 'warn', text: `Request #${req.id} is still "${r.status}". The watcher (on the Bloomberg PC) will process it — not installed yet.` })
           }
         } catch (e) {
-          clearInterval(pollTimer.current)
-          setRefreshing(false)
+          clearInterval(pollTimer.current); setRefreshing(false)
           setBanner({ kind: 'bad', text: `Error polling request: ${e.message || e}` })
         }
       }, POLL_MS)
@@ -107,23 +98,31 @@ export default function App() {
     }
   }, [loadAll])
 
-  const lastUpdated = summary?.last_updated
+  const instrumentsById = useMemo(() => {
+    const m = new Map()
+    for (const i of instruments) m.set(i.id, i)
+    return m
+  }, [instruments])
+
+  const activeInstruments = useMemo(
+    () => instruments.filter((i) => i.is_active !== false),
+    [instruments],
+  )
+
+  const anchorISO = summary?.date_max || null
+  const packCount = charts.filter((c) => c.in_pack).length
 
   return (
     <div className="app">
-      <div className="header">
+      <div className="header no-print">
         <div>
           <h1>Invest-Pack Dashboard</h1>
           <div className="sub">Bloomberg-driven commodity &amp; equity drivers · isolated <code>pack</code> schema</div>
         </div>
         <div className="updated">
-          <div className="stamp">
-            Data last updated: <strong>{fmtTimestamp(lastUpdated)}</strong>
-          </div>
+          <div className="stamp">Data last updated: <strong>{fmtTimestamp(summary?.last_updated)}</strong></div>
           <div className="btn-row">
-            <button className="btn ghost" onClick={loadAll} disabled={loading}>
-              Reload view
-            </button>
+            <button className="btn ghost" onClick={loadAll} disabled={loading}>Reload view</button>
             <button className="btn" onClick={() => onRefresh('snapshot')} disabled={refreshing}>
               {refreshing ? 'Refreshing…' : 'Refresh from Bloomberg'}
             </button>
@@ -131,15 +130,18 @@ export default function App() {
         </div>
       </div>
 
-      {banner && <div className={`banner ${banner.kind}`}>{banner.text}</div>}
+      <div className="tabs no-print">
+        {TABS.map((t) => (
+          <button key={t.key} className={`tab ${tab === t.key ? 'active' : ''}`} onClick={() => setTab(t.key)}>
+            {t.label}{t.key === 'pack' && packCount ? ` (${packCount})` : ''}
+          </button>
+        ))}
+      </div>
 
+      {banner && <div className={`banner ${banner.kind} no-print`}>{banner.text}</div>}
       {error && (
-        <div className="banner bad">
+        <div className="banner bad no-print">
           <strong>Couldn't load data.</strong> {error}
-          <div className="muted" style={{ marginTop: 6 }}>
-            If this mentions the schema, make sure <code>pack</code> is added under
-            Supabase → Settings → Data API → Exposed schemas, and that you've run the schema + seed SQL.
-          </div>
         </div>
       )}
 
@@ -147,22 +149,28 @@ export default function App() {
         <div className="center">Loading…</div>
       ) : (
         <>
-          <SummaryCards summary={summary} />
-          {lastRequest && (
-            <div className="banner info">
-              Last refresh request: #{lastRequest.id} · <strong>{lastRequest.status}</strong>
-              {lastRequest.mode ? ` · ${lastRequest.mode}` : ''}
-              {lastRequest.completed_at ? ` · completed ${fmtTimestamp(lastRequest.completed_at)}` : ''}
-              {lastRequest.message ? ` · ${lastRequest.message}` : ''}
-            </div>
+          {tab === 'overview' && (
+            <>
+              <SummaryCards summary={summary} />
+              <InstrumentTable instruments={instruments} latest={latest} />
+            </>
           )}
-          <InstrumentTable instruments={instruments} latest={latest} />
+          {tab === 'builder' && (
+            <ChartBuilder instruments={activeInstruments} instrumentsById={instrumentsById}
+              anchorISO={anchorISO} onSaved={() => { reloadCharts(); setTab('mycharts') }} />
+          )}
+          {tab === 'mycharts' && (
+            <MyCharts charts={charts} instrumentsById={instrumentsById}
+              anchorISO={anchorISO} onChanged={reloadCharts} />
+          )}
+          {tab === 'pack' && (
+            <InvestmentPack charts={charts} instrumentsById={instrumentsById}
+              anchorISO={anchorISO} onChanged={reloadCharts} />
+          )}
         </>
       )}
 
-      <div className="footer">
-        Invest-Pack · milestone 1 (data plumbing). Charts &amp; pack layout come later.
-      </div>
+      <div className="footer no-print">Invest-Pack · Chart Builder + Investment Pack</div>
     </div>
   )
 }
