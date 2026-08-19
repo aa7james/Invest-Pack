@@ -46,25 +46,37 @@ def api(method, path, body=None, prefer=None):
         raise
 
 
+# Place the panel right after this chart (matches the source pack order).
+AFTER_TITLE = 'SA Electricity Price Index'
+
+
 def main():
     charts = api('GET', '/rest/v1/charts?select=id,title,pack_order')
     max_order = max([c['pack_order'] for c in charts], default=0)
 
     # Idempotent: remove any existing panel with this title first.
-    existing = [c for c in charts if c['title'] == TITLE]
-    for c in existing:
+    for c in [c for c in charts if c['title'] == TITLE]:
         api('DELETE', f'/rest/v1/charts?id=eq.{c["id"]}', prefer='return=minimal')
 
-    api('POST', '/rest/v1/charts', prefer='return=minimal', body={
-        'title': TITLE,
-        'chart_type': 'image',
-        'category': 'Energy',
-        'time_range': 'ALL',
-        'in_pack': True,
-        'pack_order': max_order + 1,
-        'annotation': ANNOTATION,
+    inserted = api('POST', '/rest/v1/charts', prefer='return=representation', body={
+        'title': TITLE, 'chart_type': 'image', 'category': 'Energy', 'time_range': 'ALL',
+        'in_pack': True, 'pack_order': max_order + 1, 'annotation': ANNOTATION,
     })
-    print(f'Added image panel "{TITLE}" to the Energy section.')
+    new_id = inserted[0]['id']
+
+    # Reorder: put the panel immediately after AFTER_TITLE, renumber sequentially.
+    charts = api('GET', '/rest/v1/charts?select=id,title,pack_order')
+    others = sorted([c for c in charts if c['id'] != new_id], key=lambda c: c['pack_order'])
+    ordered = []
+    for c in others:
+        ordered.append(c)
+        if c['title'] == AFTER_TITLE:
+            ordered.append(next(c2 for c2 in charts if c2['id'] == new_id))
+
+    for i, c in enumerate(ordered, 1):
+        if c['pack_order'] != i:
+            api('PATCH', f'/rest/v1/charts?id=eq.{c["id"]}', prefer='return=minimal', body={'pack_order': i})
+    print(f'Added "{TITLE}" right after "{AFTER_TITLE}" in Energy.')
 
 
 if __name__ == '__main__':
