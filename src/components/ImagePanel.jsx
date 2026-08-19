@@ -27,7 +27,19 @@ export default function ImagePanel({ chart, onSaved }) {
   const [image, setImage] = useState(chart.image_data || null)
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState(null)
+  const [url, setUrl] = useState(chart.source_url || '')
+  const [editingUrl, setEditingUrl] = useState(false)
   const fileRef = useRef(null)
+
+  async function saveUrl() {
+    try {
+      await updateChart(chart.id, { source_url: url.trim() || null })
+      setEditingUrl(false)
+      onSaved && onSaved()
+    } catch (e) {
+      setMsg({ kind: 'bad', text: `Couldn't save link: ${e.message || e}` })
+    }
+  }
 
   async function save(file) {
     if (!file) return
@@ -67,6 +79,16 @@ export default function ImagePanel({ chart, onSaved }) {
           </div>
         )}
 
+      {/* Source link (shown on screen and in the PDF) */}
+      {chart.source_url && !editingUrl && (
+        <div className="manual-row" style={{ marginTop: 10 }}>
+          <a className="manual-link" href={chart.source_url} target="_blank" rel="noreferrer">
+            Open source ↗
+          </a>
+          <button className="btn tiny ghost no-print" onClick={() => setEditingUrl(true)}>Edit link</button>
+        </div>
+      )}
+
       <div className="image-controls no-print" tabIndex={0} onPaste={onPaste}>
         <span className="manual-label">Screenshot panel — paste (Ctrl+V) here or upload</span>
         <div className="btn-row">
@@ -77,6 +99,15 @@ export default function ImagePanel({ chart, onSaved }) {
             onChange={(e) => save(e.target.files?.[0])} />
         </div>
       </div>
+
+      {(editingUrl || !chart.source_url) && (
+        <div className="image-controls no-print">
+          <input className="input" style={{ marginBottom: 0, flex: 1, minWidth: 220 }}
+            placeholder="Source website URL (e.g. https://www.eskom.co.za/dataportal/)"
+            value={url} onChange={(e) => setUrl(e.target.value)} />
+          <button className="btn small" onClick={saveUrl}>Save link</button>
+        </div>
+      )}
       {msg && <div className={`inline-msg ${msg.kind} no-print`}>{msg.text}</div>}
     </div>
   )
