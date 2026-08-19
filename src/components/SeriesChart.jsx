@@ -93,7 +93,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
             <XAxis dataKey="date" tickFormatter={axisDate} tick={{ fill: '#93a0bd', fontSize: 11 }}
               minTickGap={60} stroke="#2a3550" />
             <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
-              tickFormatter={(v) => fmtNum(v)} width={70} />
+              domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={70} />
             <Tooltip
               contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
               labelStyle={{ color: '#e7ecf5' }}
