@@ -10,6 +10,9 @@ export const RANGES = ['1M', '3M', '6M', '1Y', '2Y', '5Y', '10Y', 'ALL']
 // Given an anchor date (the latest data date) and a range key, return the ISO
 // start date to filter from (or null for ALL).
 export function rangeStart(anchorISO, range) {
+  // A chart can store an explicit start date (YYYY-MM-DD) instead of a preset,
+  // e.g. an index chart rebased from a specific date.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(range)) return range
   const months = RANGE_MONTHS[range]
   if (!months || !anchorISO) return null
   const d = new Date(anchorISO + 'T00:00:00')
