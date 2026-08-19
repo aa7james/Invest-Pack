@@ -41,7 +41,7 @@ CATALOG = [
     ('Electricity consumed in South Africa', V, 'ALL', [('Electricity Consumed (SA)','')],
         'Source: StatsSA — electricity available for distribution (GWh). Use the link on this chart to fetch new months.'),
     ('Energy Prices (Indexed from 2001)', I, 'ALL', [('Brent Crude Oil','USD'),('Natural Gas (Henry Hub)','USD'),('EU Carbon Prices','USD'),('Thermal Coal','USD')]),
-    ('Energy Prices (Indexed from 2012)', I, '2012-11-29', [('Brent Crude Oil','USD'),('Natural Gas (Henry Hub)','USD'),('EU Carbon Prices','USD'),('Thermal Coal','USD')]),
+    ('Energy Prices (Actual)', V, '2012-11-29', [('Brent Crude Oil','USD'),('Natural Gas (Henry Hub)','USD'),('EU Carbon Prices','USD'),('Thermal Coal','USD')]),
     ('Brent Crude Oil', V, 'ALL', [('Brent Crude Oil','USD')]),
     ('Total World Oil & Gas Rig Count', V, 'ALL', [('Total World Oil & Gas Rig Count','')]),
     ('US Oil & Gas Rig Count', V, 'ALL', [('US Oil & Gas Rig Count','')]),
