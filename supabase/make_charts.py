@@ -56,28 +56,36 @@ def main():
     print('Clearing existing charts...')
     api('DELETE', '/rest/v1/charts?id=gte.0', prefer='return=minimal')
 
+    # Resolve every series first; skip a chart (with a warning) if an instrument
+    # isn't in the DB yet, so this is safe to run before optional migrations.
     made = 0
-    for order, entry in enumerate(CATALOG, 1):
+    order = 0
+    for entry in CATALOG:
         title, typ, rng, series = entry[0], entry[1], entry[2], entry[3]
         annot = entry[4] if len(entry) > 4 else None
 
+        if typ in ('spread', 'nitrogen_spread'):
+            pairs = [(series[1], 'spread_a'), (series[2], 'spread_b')]
+        else:
+            pairs = [((nm, ccy), 'series') for nm, ccy in series]
+
+        missing = [p for (p, _) in pairs if (p[0], p[1]) not in lookup]
+        if missing:
+            print(f'  SKIP "{title}" - instrument(s) not found: {missing}')
+            continue
+
+        order += 1
         chart = api('POST', '/rest/v1/charts', prefer='return=representation', body={
             'title': title, 'chart_type': typ, 'time_range': rng,
             'in_pack': True, 'pack_order': order, 'annotation': annot,
         })
         cid = chart[0]['id']
 
-        rows = []
-        if typ in ('spread', 'nitrogen_spread'):
-            _, a, b = series
-            rows.append({'chart_id': cid, 'instrument_id': lookup[(a[0], a[1])], 'role': 'spread_a', 'sort_order': 0})
-            rows.append({'chart_id': cid, 'instrument_id': lookup[(b[0], b[1])], 'role': 'spread_b', 'sort_order': 1})
-        else:
-            for i, (nm, ccy) in enumerate(series):
-                rows.append({'chart_id': cid, 'instrument_id': lookup[(nm, ccy)], 'role': 'series', 'sort_order': i})
+        rows = [{'chart_id': cid, 'instrument_id': lookup[(p[0], p[1])], 'role': role, 'sort_order': i}
+                for i, (p, role) in enumerate(pairs)]
         api('POST', '/rest/v1/chart_series', prefer='return=minimal', body=rows)
         made += 1
-        print(f'  [{made}/{len(CATALOG)}] {title}')
+        print(f'  [{made}] {title}')
 
     print(f'\nDONE. Created {made} charts and added them to the pack.')
 

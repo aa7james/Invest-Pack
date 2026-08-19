@@ -265,6 +265,20 @@ a { color: var(--accent); }
   border-radius: 8px; padding: 10px; font-size: 13px; font-family: var(--font);
 }
 
+/* Manual data entry (for non-Bloomberg series) */
+.manual-entry {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.manual-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-bottom: 8px; }
+.manual-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.4px; }
+.manual-link { font-size: 13px; font-weight: 600; }
+.manual-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.manual-form .input { width: auto; margin-bottom: 0; }
+
 /* Pack title header (shown on screen and in print) */
 .pack-title h2 { margin: 0; font-size: 22px; }
 .pack-title .muted { font-size: 13px; margin-top: 2px; }

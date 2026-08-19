@@ -21,6 +21,7 @@ KNOWN = {
     ('CBOT Corn',''),('Corn','ZAR'),('Soybean','ZAR'),('CBOT Soybean','USD'),('Wheat','ZAR'),('CBOT Wheat','USD'),
     ('ICE Sugar',''),('ICE Coffee',''),('ICE Cocoa',''),('Peru Fishmeal',''),('Milk','USD'),('World Tea Price','USD'),('Palm Oil','USD'),
     ('Macau Total Visitors',''),('Macau Chinese Visitors',''),('Macau Hotel Occupancy Rates',''),
+    ('Electricity Consumed (SA)',''),
 }
 
 # Each chart: (title, type, range, series). series = list of (name, ccy) for value/index,
@@ -37,6 +38,8 @@ CATALOG = [
         'Urea Black Sea Spot minus 0.58× Ammonia Caribbean Spot (ZAR) — a nitrogen-margin proxy — with its cumulative average.'),
 
     ('SA Electricity Price Index', V, 'ALL', [('SA ELECTRICITY PRICE INDEX','')]),
+    ('Electricity consumed in South Africa', V, 'ALL', [('Electricity Consumed (SA)','')],
+        'Source: StatsSA — electricity available for distribution (GWh). Use the link on this chart to fetch new months.'),
     ('Energy Prices (Indexed)', I, 'ALL', [('Brent Crude Oil','USD'),('Natural Gas (Henry Hub)','USD'),('EU Carbon Prices','USD'),('Thermal Coal','USD')]),
     ('Brent Crude Oil', V, 'ALL', [('Brent Crude Oil','USD')]),
     ('Total World Oil & Gas Rig Count', V, 'ALL', [('Total World Oil & Gas Rig Count','')]),

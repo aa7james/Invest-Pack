@@ -6,11 +6,23 @@ import { supabase } from '../supabaseClient'
 export async function fetchInstruments() {
   const { data, error } = await supabase
     .from('instruments')
-    .select('id, category, name, bloomberg_ticker, bloomberg_field, currency, is_active')
+    .select('id, category, name, bloomberg_ticker, bloomberg_field, currency, is_active, source, source_url, unit')
     .order('category', { ascending: true })
     .order('name', { ascending: true })
   if (error) throw error
   return data ?? []
+}
+
+// Add/update a single data point for a MANUAL series (RLS allows this only for
+// instruments tagged source='manual'). Upserts on (instrument_id, obs_date).
+export async function addManualDataPoint(instrumentId, obsDate, value) {
+  const { error } = await supabase
+    .from('pack_data')
+    .upsert(
+      { instrument_id: instrumentId, obs_date: obsDate, value, updated_at: new Date().toISOString() },
+      { onConflict: 'instrument_id,obs_date' },
+    )
+  if (error) throw error
 }
 
 // Latest stored value per instrument (from the v_latest_values view).

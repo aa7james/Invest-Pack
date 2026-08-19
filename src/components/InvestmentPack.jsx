@@ -1,9 +1,16 @@
 import { useState } from 'react'
 import SeriesChart from './SeriesChart'
+import ManualDataEntry from './ManualDataEntry'
 import { updateChart } from '../lib/charts'
 
 function PackItem({ chart, index, count, instrumentsById, anchorISO, onChanged, onMove }) {
   const [note, setNote] = useState(chart.annotation || '')
+  const [reloadKey, setReloadKey] = useState(0)
+
+  // A chart is manually editable if one of its series is a manual (non-Bloomberg) instrument.
+  const manualInstrument = (chart.series || [])
+    .map((s) => instrumentsById.get(s.instrument_id))
+    .find((inst) => inst && inst.source === 'manual')
 
   async function saveNote() {
     if (note === (chart.annotation || '')) return
@@ -27,7 +34,10 @@ function PackItem({ chart, index, count, instrumentsById, anchorISO, onChanged, 
       </div>
       <h3>{chart.title}</h3>
       <SeriesChart def={chart} range={chart.time_range || '1Y'} anchorISO={anchorISO}
-        instrumentsById={instrumentsById} height={420} />
+        instrumentsById={instrumentsById} height={420} reloadKey={reloadKey} />
+      {manualInstrument && (
+        <ManualDataEntry instrument={manualInstrument} onAdded={() => setReloadKey((k) => k + 1)} />
+      )}
       <textarea
         className="annotation"
         placeholder="Add a comment for the pack…"

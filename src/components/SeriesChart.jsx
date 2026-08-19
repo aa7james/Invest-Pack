@@ -29,7 +29,7 @@ function keysFor(series, instrumentsById) {
   })
 }
 
-export default function SeriesChart({ def, range, anchorISO, instrumentsById, height = 280 }) {
+export default function SeriesChart({ def, range, anchorISO, instrumentsById, height = 280, reloadKey = 0 }) {
   const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {} })
 
   useEffect(() => {
@@ -78,7 +78,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
       }
     })()
     return () => { alive = false }
-  }, [def, range, anchorISO, instrumentsById])
+  }, [def, range, anchorISO, instrumentsById, reloadKey])
 
   if (state.error) return <div className="chart-msg err">Chart error: {state.error}</div>
   if (state.loading) return <div className="chart-msg" style={{ height }}>Loading chart…</div>
