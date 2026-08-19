@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import SeriesChart from './SeriesChart'
 import ManualDataEntry from './ManualDataEntry'
+import ImagePanel from './ImagePanel'
 import Lazy from './Lazy'
 import { updateChart } from '../lib/charts'
 
@@ -52,12 +53,18 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag })
         </div>
       </div>
       <h3>{chart.title}</h3>
-      <Lazy height={420} eager={eager}>
-        <SeriesChart def={chart} range={chart.time_range || '1Y'} anchorISO={anchorISO}
-          instrumentsById={instrumentsById} height={420} reloadKey={reloadKey} />
-      </Lazy>
-      {manualInstrument && (
-        <ManualDataEntry instrument={manualInstrument} onAdded={() => setReloadKey((k) => k + 1)} />
+      {chart.chart_type === 'image' ? (
+        <ImagePanel chart={chart} onSaved={onChanged} />
+      ) : (
+        <>
+          <Lazy height={420} eager={eager}>
+            <SeriesChart def={chart} range={chart.time_range || '1Y'} anchorISO={anchorISO}
+              instrumentsById={instrumentsById} height={420} reloadKey={reloadKey} />
+          </Lazy>
+          {manualInstrument && (
+            <ManualDataEntry instrument={manualInstrument} onAdded={() => setReloadKey((k) => k + 1)} />
+          )}
+        </>
       )}
       <textarea className="annotation" placeholder="Add a comment for the pack…"
         value={note} onChange={(e) => setNote(e.target.value)} onBlur={saveNote} />
@@ -67,6 +74,7 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag })
 
 export default function InvestmentPack({ charts, instrumentsById, anchorISO, onChanged }) {
   const catOf = (c) => {
+    if (c.category) return c.category
     const s = (c.series || [])[0]
     const inst = s && instrumentsById.get(s.instrument_id)
     return (inst && inst.category) || 'Other'

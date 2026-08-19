@@ -313,6 +313,22 @@ a { color: var(--accent); }
 .drag-handle:active { cursor: grabbing; }
 .pack-item.dragging { opacity: 0.45; outline: 2px dashed var(--accent); }
 
+/* Image panel (pasted screenshots) */
+.pack-image { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border); display: block; }
+.image-drop {
+  width: 100%; min-height: 220px;
+  display: flex; align-items: center; justify-content: center; text-align: center;
+  border: 2px dashed var(--border); border-radius: 10px; color: var(--muted);
+  background: var(--panel-2); padding: 20px; cursor: text;
+}
+.image-drop:focus { outline: 2px solid var(--accent); }
+.image-controls {
+  margin-top: 10px; padding: 10px 12px;
+  border: 1px dashed var(--border); border-radius: 8px; background: var(--panel-2);
+  display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap;
+}
+.image-controls:focus { outline: 2px solid var(--accent); }
+
 /* Manual data entry (for non-Bloomberg series) */
 .manual-entry {
   margin-top: 10px;

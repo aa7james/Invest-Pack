@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import TimeRange from './TimeRange'
 import SeriesChart from './SeriesChart'
+import ImagePanel from './ImagePanel'
 import Lazy from './Lazy'
 import { updateChart, deleteChart } from '../lib/charts'
 
@@ -35,11 +36,17 @@ function ChartCard({ chart, instrumentsById, anchorISO, onChanged }) {
           <button className="btn small ghost" onClick={remove} disabled={busy}>Delete</button>
         </div>
       </div>
-      <TimeRange value={range} onChange={changeRange} />
-      <Lazy height={260}>
-        <SeriesChart def={chart} range={range} anchorISO={anchorISO}
-          instrumentsById={instrumentsById} height={260} />
-      </Lazy>
+      {chart.chart_type === 'image' ? (
+        <ImagePanel chart={chart} onChanged={onChanged} />
+      ) : (
+        <>
+          <TimeRange value={range} onChange={changeRange} />
+          <Lazy height={260}>
+            <SeriesChart def={chart} range={range} anchorISO={anchorISO}
+              instrumentsById={instrumentsById} height={260} />
+          </Lazy>
+        </>
+      )}
     </div>
   )
 }
