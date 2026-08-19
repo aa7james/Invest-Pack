@@ -265,6 +265,54 @@ a { color: var(--accent); }
   border-radius: 8px; padding: 10px; font-size: 13px; font-family: var(--font);
 }
 
+/* Investment Pack — collapsible sections */
+.pack-section { margin-bottom: 14px; }
+.pack-section-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 16px;
+  color: var(--text);
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  text-align: left;
+}
+.pack-section-header:hover { background: var(--panel-2); }
+.pack-section-header .chev { transition: transform 0.15s ease; color: var(--accent); font-size: 12px; }
+.pack-section-header .chev.open { transform: rotate(90deg); }
+.pack-section-header .sec-count {
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
+  background: var(--panel-2);
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  padding: 1px 10px;
+}
+.pack-section-body { padding-top: 12px; }
+.pack-section-title { display: none; }
+
+/* Drag handle */
+.drag-handle {
+  cursor: grab;
+  user-select: none;
+  color: var(--muted);
+  font-size: 12px;
+  letter-spacing: 1px;
+  padding: 4px 8px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--panel-2);
+}
+.drag-handle:active { cursor: grabbing; }
+.pack-item.dragging { opacity: 0.45; outline: 2px dashed var(--accent); }
+
 /* Manual data entry (for non-Bloomberg series) */
 .manual-entry {
   margin-top: 10px;
@@ -299,4 +347,14 @@ a { color: var(--accent); }
   .no-print { display: none !important; }
   .app { max-width: none; padding: 0; }
   .pack-item { page-break-inside: avoid; margin-bottom: 20px; }
+  /* Show the plain category heading in the PDF instead of the button */
+  .pack-section-title {
+    display: block;
+    font-size: 18px;
+    margin: 18px 0 8px;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 4px;
+    page-break-after: avoid;
+  }
 }
