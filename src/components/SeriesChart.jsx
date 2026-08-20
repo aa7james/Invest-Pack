@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts'
-import { buildValueSeries, buildSpreadSeries, buildIndexedSeries, buildNitrogenSpread } from '../lib/series'
+import { buildValueSeries, buildSpreadSeries, buildIndexedSeries, buildNitrogenSpread, buildRatioSeries } from '../lib/series'
 import { fmtNum } from '../lib/format'
 
 export const CHART_COLORS = [
@@ -47,6 +47,15 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           res = await buildNitrogenSpread(
             { instrumentId: a.instrument_id }, { instrumentId: b.instrument_id },
             anchorISO, range, 0.58, label,
+          )
+        } else if (def.chart_type === 'ratio') {
+          const a = def.series.find((s) => s.role === 'spread_a')
+          const b = def.series.find((s) => s.role === 'spread_b')
+          const an = instrumentsById.get(a?.instrument_id)
+          const bn = instrumentsById.get(b?.instrument_id)
+          res = await buildRatioSeries(
+            { instrumentId: a.instrument_id }, { instrumentId: b.instrument_id },
+            anchorISO, range, `${an?.name || 'A'} / ${bn?.name || 'B'}`,
           )
         } else if (def.chart_type === 'spread') {
           const a = def.series.find((s) => s.role === 'spread_a')

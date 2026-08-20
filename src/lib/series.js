@@ -128,6 +128,18 @@ export async function buildNitrogenSpread(a, b, anchorISO, range, coeffB = 0.58,
   return { data: ds, keys: [spreadLabel, 'Moving average'] }
 }
 
+// Ratio A / B on dates where both exist (e.g. Platinum/Gold).
+export async function buildRatioSeries(a, b, anchorISO, range, label) {
+  const from = rangeStart(anchorISO, range)
+  const obs = await fetchObservations([a.instrumentId, b.instrumentId], from)
+  const ma = new Map((obs.get(a.instrumentId) || []).map((p) => [p.date, p.value]))
+  const mb = new Map((obs.get(b.instrumentId) || []).map((p) => [p.date, p.value]))
+  const dates = Array.from(ma.keys()).filter((d) => mb.has(d) && mb.get(d)).sort()
+  let pts = dates.map((date) => ({ date, [label]: ma.get(date) / mb.get(date) }))
+  pts = downsample(pts)
+  return { data: pts, keys: [label] }
+}
+
 // Spread A - B on dates where both exist.
 export async function buildSpreadSeries(a, b, anchorISO, range, label) {
   const from = rangeStart(anchorISO, range)
