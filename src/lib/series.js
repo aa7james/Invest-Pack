@@ -128,6 +128,63 @@ export async function buildNitrogenSpread(a, b, anchorISO, range, coeffB = 0.58,
   return { data: ds, keys: [spreadLabel, 'Moving average'] }
 }
 
+function pearson(x, y) {
+  const n = x.length
+  let sx = 0, sy = 0, sxy = 0, sxx = 0, syy = 0
+  for (let i = 0; i < n; i++) { sx += x[i]; sy += y[i]; sxy += x[i] * y[i]; sxx += x[i] * x[i]; syy += y[i] * y[i] }
+  const cov = n * sxy - sx * sy
+  const dx = Math.sqrt(n * sxx - sx * sx)
+  const dy = Math.sqrt(n * syy - sy * sy)
+  return (dx && dy) ? cov / (dx * dy) : 0
+}
+
+// Rolling `window`-day correlation of the daily log returns of A vs B, with the
+// small-sample bias correction used in the pack (Platinum/Gold Correlation).
+export async function buildCorrelation(a, b, anchorISO, range, label, window = 252) {
+  const from = rangeStart(anchorISO, range)
+  const obs = await fetchObservations([a.instrumentId, b.instrumentId], from)
+  const ma = new Map((obs.get(a.instrumentId) || []).map((p) => [p.date, p.value]))
+  const mb = new Map((obs.get(b.instrumentId) || []).map((p) => [p.date, p.value]))
+  const dates = Array.from(ma.keys()).filter((d) => mb.has(d)).sort()
+  const ra = [], rb = [], rd = []
+  for (let i = 1; i < dates.length; i++) {
+    const a0 = ma.get(dates[i - 1]), a1 = ma.get(dates[i])
+    const b0 = mb.get(dates[i - 1]), b1 = mb.get(dates[i])
+    if (a0 > 0 && a1 > 0 && b0 > 0 && b1 > 0) {
+      ra.push(Math.log(a1 / a0)); rb.push(Math.log(b1 / b0)); rd.push(dates[i])
+    }
+  }
+  const out = []
+  for (let i = window - 1; i < ra.length; i++) {
+    const r = pearson(ra.slice(i - window + 1, i + 1), rb.slice(i - window + 1, i + 1))
+    out.push({ date: rd[i], [label]: r * (1 - (1 - r * r) / (2 * (window - 1))) })
+  }
+  return { data: downsample(out), keys: [label] }
+}
+
+// Sponge premium proxy: 60-day average of ((NA + EU)/2 - spot), dropping
+// outliers > $30 (matches the pack's 'Combined 60dma').
+export async function buildSpongePremium(na, eu, spot, anchorISO, range, label, maWin = 60) {
+  const from = rangeStart(anchorISO, range)
+  const obs = await fetchObservations([na.instrumentId, eu.instrumentId, spot.instrumentId], from)
+  const mn = new Map((obs.get(na.instrumentId) || []).map((p) => [p.date, p.value]))
+  const me = new Map((obs.get(eu.instrumentId) || []).map((p) => [p.date, p.value]))
+  const ms = new Map((obs.get(spot.instrumentId) || []).map((p) => [p.date, p.value]))
+  const dates = Array.from(mn.keys()).filter((d) => me.has(d) && ms.has(d)).sort()
+  const prem = dates.map((d) => {
+    const p = (mn.get(d) + me.get(d)) / 2 - ms.get(d)
+    return Math.abs(p) > 30 ? null : p
+  })
+  const out = []
+  for (let i = 0; i < dates.length; i++) {
+    if (i < maWin - 1) continue
+    const win = prem.slice(i - maWin + 1, i + 1).filter((v) => v != null)
+    if (!win.length) continue
+    out.push({ date: dates[i], [label]: win.reduce((s, v) => s + v, 0) / win.length })
+  }
+  return { data: downsample(out), keys: [label] }
+}
+
 // Ratio A / B on dates where both exist (e.g. Platinum/Gold).
 export async function buildRatioSeries(a, b, anchorISO, range, label) {
   const from = rangeStart(anchorISO, range)

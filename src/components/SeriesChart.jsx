@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react'
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts'
-import { buildValueSeries, buildSpreadSeries, buildIndexedSeries, buildNitrogenSpread, buildRatioSeries } from '../lib/series'
+import {
+  buildValueSeries, buildSpreadSeries, buildIndexedSeries, buildNitrogenSpread,
+  buildRatioSeries, buildCorrelation, buildSpongePremium,
+} from '../lib/series'
 import { fmtNum } from '../lib/format'
 
 export const CHART_COLORS = [
@@ -47,6 +50,21 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           res = await buildNitrogenSpread(
             { instrumentId: a.instrument_id }, { instrumentId: b.instrument_id },
             anchorISO, range, 0.58, label,
+          )
+        } else if (def.chart_type === 'correlation') {
+          const a = def.series.find((s) => s.role === 'spread_a')
+          const b = def.series.find((s) => s.role === 'spread_b')
+          res = await buildCorrelation(
+            { instrumentId: a.instrument_id }, { instrumentId: b.instrument_id },
+            anchorISO, range, 'Platinum–Gold correlation (1y)',
+          )
+        } else if (def.chart_type === 'sponge_premium') {
+          const na = def.series.find((s) => s.role === 'na')
+          const eu = def.series.find((s) => s.role === 'eu')
+          const spot = def.series.find((s) => s.role === 'spot')
+          res = await buildSpongePremium(
+            { instrumentId: na.instrument_id }, { instrumentId: eu.instrument_id },
+            { instrumentId: spot.instrument_id }, anchorISO, range, 'Sponge premium (60dma, $/oz)',
           )
         } else if (def.chart_type === 'ratio') {
           const a = def.series.find((s) => s.role === 'spread_a')

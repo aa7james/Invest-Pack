@@ -53,6 +53,14 @@ def main():
         api('POST', '/rest/v1/chart_series', prefer='return=minimal', body=rows)
         print('created', title)
 
+    def new_image(title, annotation):
+        if title in have:
+            return
+        api('POST', '/rest/v1/charts', prefer='return=minimal', body={
+            'title': title, 'chart_type': 'image', 'category': 'Metals',
+            'time_range': 'ALL', 'in_pack': True, 'pack_order': 9999, 'annotation': annotation})
+        print('created image panel', title)
+
     S = lambda name, ccy='USD': ((name, ccy), 'series')
     # recent 10Y actual-price companions
     for title, name in [('LME Aluminium (10Y)', 'Aluminium'), ('LME Copper (10Y)', 'Copper'),
@@ -75,6 +83,22 @@ def main():
     # Platinum/Gold ratio
     new_chart('Platinum/Gold', 'ratio', 'ALL',
               [(('Platinum', 'USD'), 'spread_a'), (('Gold', 'USD'), 'spread_b')])
+
+    # Computed: Platinum/Gold correlation (252d rolling of log returns).
+    new_chart('Platinum/Gold Correlation', 'correlation', 'ALL',
+              [(('Platinum', 'USD'), 'spread_a'), (('Gold', 'USD'), 'spread_b')])
+
+    # Computed: Sponge premium proxy (Combined 60dma).
+    new_chart('Sponge Premium (Proxy)', 'sponge_premium', 'ALL',
+              [(('Platinum price North America', 'USD'), 'na'),
+               (('Platinum price Europe', 'USD'), 'eu'),
+               (('Platinum', 'USD'), 'spot')])
+
+    # Screenshot / external panels (paste an image each month).
+    new_image('Global Rough Diamond Index', 'External index — paste the latest screenshot.')
+    new_image('Commodity Producers Capex (Estimates)', 'Forward capex estimates (Bloomberg). Paste the latest screenshot.')
+    new_image('Pre-owned Watch Market', 'ChronoPulse pre-owned watch price index — paste the latest screenshot.')
+    new_image('Investec Mining Clock', 'Investec Mining Clock — paste the latest screenshot.')
 
     # Renames / base fixes
     def rename(old, new, patch=None):
