@@ -91,6 +91,23 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           res = def.chart_type === 'index'
             ? await buildIndexedSeries(...args)
             : await buildValueSeries(...args)
+          // Capex convention: Bloomberg returns TRAIL_12M_CAP_EXPEND as a negative
+          // (cash outflow). Show it positive (as the pack does) and drop glitches.
+          const negKeys = new Set(withKeys
+            .filter((s) => instrumentsById.get(s.instrument_id)?.bloomberg_field === 'TRAIL_12M_CAP_EXPEND')
+            .map((s) => s.key))
+          if (negKeys.size) {
+            res = {
+              ...res,
+              data: res.data.map((row) => {
+                const r = { ...row }
+                for (const k of negKeys) {
+                  if (r[k] != null) r[k] = Math.abs(r[k]) > 2000 ? null : -r[k]
+                }
+                return r
+              }),
+            }
+          }
         }
         if (!alive) return
         const last = {}
