@@ -315,13 +315,20 @@ a { color: var(--accent); }
 
 /* Image panel (pasted screenshots) */
 .pack-image { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border); display: block; }
-.image-drop {
+.image-frame { position: relative; border-radius: 10px; cursor: pointer; outline: none; }
+.image-frame:focus { box-shadow: 0 0 0 2px var(--accent); }
+.image-frame:focus .image-frame-hint { background: var(--accent); color: #fff; }
+.image-frame-hint {
+  position: absolute; top: 8px; right: 8px;
+  font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px;
+  background: rgba(15,20,32,0.75); color: var(--muted); border: 1px solid var(--border);
+}
+.image-drop-empty {
   width: 100%; min-height: 220px;
   display: flex; align-items: center; justify-content: center; text-align: center;
   border: 2px dashed var(--border); border-radius: 10px; color: var(--muted);
-  background: var(--panel-2); padding: 20px; cursor: text;
+  background: var(--panel-2); padding: 20px;
 }
-.image-drop:focus { outline: 2px solid var(--accent); }
 .image-controls {
   margin-top: 10px; padding: 10px 12px;
   border: 1px dashed var(--border); border-radius: 8px; background: var(--panel-2);

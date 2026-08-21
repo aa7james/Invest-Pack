@@ -71,13 +71,16 @@ export default function ImagePanel({ chart, onSaved }) {
 
   return (
     <div>
-      {image
-        ? <img className="pack-image" src={image} alt={chart.title} />
-        : (
-          <div className="image-drop no-print" tabIndex={0} onPaste={onPaste}>
-            Click here, then press <strong>Ctrl+V</strong> to paste a screenshot — or use Upload below.
-          </div>
-        )}
+      {/* Focusable frame: click it, then Ctrl+V to paste OR replace the image. */}
+      <div className="image-frame" tabIndex={0} onPaste={onPaste}
+        title="Click here, then press Ctrl+V to paste or replace">
+        {image
+          ? <img className="pack-image" src={image} alt={chart.title} />
+          : <div className="image-drop-empty">Click here, then press <strong>Ctrl+V</strong> to paste a screenshot</div>}
+        <div className="image-frame-hint no-print">
+          {image ? 'Click + Ctrl+V to replace' : 'Click + Ctrl+V to paste'}
+        </div>
+      </div>
 
       {/* Source link (shown on screen and in the PDF) */}
       {chart.source_url && !editingUrl && (
@@ -90,7 +93,7 @@ export default function ImagePanel({ chart, onSaved }) {
       )}
 
       <div className="image-controls no-print" tabIndex={0} onPaste={onPaste}>
-        <span className="manual-label">Screenshot panel — paste (Ctrl+V) here or upload</span>
+        <span className="manual-label">To update: click the image then Ctrl+V — or use the button →</span>
         <div className="btn-row">
           <button className="btn small" onClick={() => fileRef.current?.click()} disabled={busy}>
             {busy ? 'Saving…' : (image ? 'Replace image' : 'Upload image')}
