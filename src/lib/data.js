@@ -25,6 +25,20 @@ export async function addManualDataPoint(instrumentId, obsDate, value) {
   if (error) throw error
 }
 
+// Bulk add/update many points for a manual series. rows = [{obs_date, value}].
+export async function addManualDataPoints(instrumentId, rows) {
+  if (!rows.length) return 0
+  const now = new Date().toISOString()
+  const payload = rows.map((r) => ({ instrument_id: instrumentId, obs_date: r.obs_date, value: r.value, updated_at: now }))
+  for (let i = 0; i < payload.length; i += 500) {
+    const { error } = await supabase
+      .from('pack_data')
+      .upsert(payload.slice(i, i + 500), { onConflict: 'instrument_id,obs_date' })
+    if (error) throw error
+  }
+  return payload.length
+}
+
 // Latest stored value per instrument (from the v_latest_values view).
 export async function fetchLatestValues() {
   const { data, error } = await supabase
