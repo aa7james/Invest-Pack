@@ -25,6 +25,36 @@ export async function addManualDataPoint(instrumentId, obsDate, value) {
   if (error) throw error
 }
 
+// All stored points for a manual series (for the editor). [{obs_date, value}]
+export async function fetchManualSeries(instrumentId) {
+  const out = []
+  let from = 0
+  while (true) {
+    const { data, error } = await supabase
+      .from('pack_data')
+      .select('obs_date, value')
+      .eq('instrument_id', instrumentId)
+      .order('obs_date', { ascending: true })
+      .range(from, from + 999)
+    if (error) throw error
+    out.push(...(data || []))
+    if (!data || data.length < 1000) break
+    from += 1000
+  }
+  return out
+}
+
+// Delete points (by date) from a manual series.
+export async function deleteManualDataPoints(instrumentId, dates) {
+  if (!dates.length) return
+  const { error } = await supabase
+    .from('pack_data')
+    .delete()
+    .eq('instrument_id', instrumentId)
+    .in('obs_date', dates)
+  if (error) throw error
+}
+
 // Bulk add/update many points for a manual series. rows = [{obs_date, value}].
 export async function addManualDataPoints(instrumentId, rows) {
   if (!rows.length) return 0
