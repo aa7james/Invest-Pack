@@ -2,6 +2,7 @@ import { useState } from 'react'
 import TimeRange from './TimeRange'
 import SeriesChart from './SeriesChart'
 import ImagePanel from './ImagePanel'
+import StackedBarPanel from './StackedBarPanel'
 import Lazy from './Lazy'
 import { updateChart, deleteChart } from '../lib/charts'
 
@@ -38,6 +39,8 @@ function ChartCard({ chart, instrumentsById, anchorISO, onChanged }) {
       </div>
       {chart.chart_type === 'image' ? (
         <ImagePanel chart={chart} onChanged={onChanged} />
+      ) : chart.chart_type === 'stacked_bar' ? (
+        <StackedBarPanel chart={chart} onSaved={onChanged} />
       ) : (
         <>
           <TimeRange value={range} onChange={changeRange} />

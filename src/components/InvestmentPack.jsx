@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import SeriesChart from './SeriesChart'
 import ManualDataEntry from './ManualDataEntry'
 import ImagePanel from './ImagePanel'
+import StackedBarPanel from './StackedBarPanel'
 import Lazy from './Lazy'
 import { updateChart } from '../lib/charts'
 
@@ -55,6 +56,8 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag })
       <h3>{chart.title}</h3>
       {chart.chart_type === 'image' ? (
         <ImagePanel chart={chart} onSaved={onChanged} />
+      ) : chart.chart_type === 'stacked_bar' ? (
+        <StackedBarPanel chart={chart} onSaved={onChanged} />
       ) : (
         <>
           <Lazy height={420} eager={eager}>
