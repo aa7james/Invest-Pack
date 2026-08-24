@@ -4,7 +4,7 @@ import {
 } from 'recharts'
 import {
   buildValueSeries, buildSpreadSeries, buildIndexedSeries, buildNitrogenSpread,
-  buildRatioSeries, buildCorrelation, buildSpongePremium, buildCornCompare,
+  buildRatioSeries, buildCorrelation, buildSpongePremium, buildCornCompare, buildSeasonal,
 } from '../lib/series'
 import { fmtNum } from '../lib/format'
 
@@ -12,6 +12,12 @@ export const CHART_COLORS = [
   '#4f8cff', '#35c78a', '#e0a13a', '#e5674f', '#b06fe0',
   '#3ec9c9', '#e56fae', '#8fb03a', '#ff8c42', '#6c8cff',
 ]
+
+// Distinct colour per series; golden-angle hues when there are many (e.g. seasons).
+function lineColor(i, n) {
+  if (n > CHART_COLORS.length) return `hsl(${Math.round((i * 137.508) % 360)}, 65%, 55%)`
+  return CHART_COLORS[i % CHART_COLORS.length]
+}
 
 function axisDate(iso) {
   // Data spans many years, so label the axis by year only.
@@ -33,7 +39,7 @@ function keysFor(series, instrumentsById) {
 }
 
 export default function SeriesChart({ def, range, anchorISO, instrumentsById, height = 280, reloadKey = 0 }) {
-  const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {} })
+  const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {}, xKey: 'date' })
 
   useEffect(() => {
     let alive = true
@@ -41,7 +47,9 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
     ;(async () => {
       try {
         let res
-        if (def.chart_type === 'nitrogen_spread') {
+        if (def.chart_type === 'seasonal') {
+          res = await buildSeasonal(def.series[0].instrument_id)
+        } else if (def.chart_type === 'nitrogen_spread') {
           const a = def.series.find((s) => s.role === 'spread_a')
           const b = def.series.find((s) => s.role === 'spread_b')
           const an = instrumentsById.get(a?.instrument_id)
@@ -123,7 +131,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
             if (res.data[i][k] != null) { last[k] = res.data[i][k]; break }
           }
         }
-        setState({ loading: false, data: res.data, keys: res.keys, error: null, last })
+        setState({ loading: false, data: res.data, keys: res.keys, error: null, last, xKey: res.xKey || 'date' })
       } catch (e) {
         if (alive) setState({ loading: false, data: [], keys: [], error: e.message || String(e), last: {} })
       }
@@ -141,8 +149,8 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
         <ResponsiveContainer>
           <LineChart data={state.data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
             <CartesianGrid stroke="#2a3550" strokeDasharray="3 3" />
-            <XAxis dataKey="date" tickFormatter={axisDate} tick={{ fill: '#93a0bd', fontSize: 11 }}
-              minTickGap={60} stroke="#2a3550" />
+            <XAxis dataKey={state.xKey} tickFormatter={state.xKey === 'date' ? axisDate : undefined}
+              tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={state.xKey === 'date' ? 60 : 0} stroke="#2a3550" />
             <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
               domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={70} />
             <Tooltip
@@ -150,7 +158,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
               labelStyle={{ color: '#e7ecf5' }}
               formatter={(v) => fmtNum(v)} />
             {state.keys.map((k, i) => (
-              <Line key={k} type="monotone" dataKey={k} stroke={CHART_COLORS[i % CHART_COLORS.length]}
+              <Line key={k} type="monotone" dataKey={k} stroke={lineColor(i, state.keys.length)}
                 dot={false} strokeWidth={1.6} connectNulls isAnimationActive={false} />
             ))}
           </LineChart>
@@ -159,7 +167,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
       <div className="chart-legend">
         {state.keys.map((k, i) => (
           <span className="leg" key={k}>
-            <i style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+            <i style={{ background: lineColor(i, state.keys.length) }} />
             {k}: <strong>{fmtNum(state.last[k])}</strong>
           </span>
         ))}

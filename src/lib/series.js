@@ -185,6 +185,29 @@ export async function buildSpongePremium(na, eu, spot, anchorISO, range, label, 
   return { data: downsample(out), keys: [label] }
 }
 
+// Seasonal overlay: one line per crop year, x-axis = months of the season
+// (default starting in May), from a single manual date->value series.
+export async function buildSeasonal(instrumentId, startMonth = 5) {
+  const obs = await fetchObservations([instrumentId], null)
+  const pts = obs.get(instrumentId) || []
+  const MONTHS = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr']
+  const bySeason = {}
+  for (const p of pts) {
+    const [y, m] = p.date.split('-').map(Number)
+    const season = m >= startMonth ? y : y - 1
+    const idx = (m - startMonth + 12) % 12
+    if (!bySeason[season]) bySeason[season] = {}
+    bySeason[season][idx] = p.value
+  }
+  const seasons = Object.keys(bySeason).sort()
+  const data = MONTHS.map((mon, idx) => {
+    const row = { month: mon }
+    for (const s of seasons) row[s] = bySeason[s][idx] ?? null
+    return row
+  })
+  return { data, keys: seasons, xKey: 'month' }
+}
+
 // SA maize (USD/t) vs world corn (CBOT cents/bushel -> $/t via x0.393683) + the
 // difference, on a comparable basis. Mirrors the pack's SA Corn vs World Corn.
 export async function buildCornCompare(sa, world, anchorISO, range, factor = 0.393683) {
