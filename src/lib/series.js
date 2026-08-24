@@ -185,6 +185,23 @@ export async function buildSpongePremium(na, eu, spot, anchorISO, range, label, 
   return { data: downsample(out), keys: [label] }
 }
 
+// SA maize (USD/t) vs world corn (CBOT cents/bushel -> $/t via x0.393683) + the
+// difference, on a comparable basis. Mirrors the pack's SA Corn vs World Corn.
+export async function buildCornCompare(sa, world, anchorISO, range, factor = 0.393683) {
+  const from = rangeStart(anchorISO, range)
+  const obs = await fetchObservations([sa.instrumentId, world.instrumentId], from)
+  const msa = new Map((obs.get(sa.instrumentId) || []).map((p) => [p.date, p.value]))
+  const mw = new Map((obs.get(world.instrumentId) || []).map((p) => [p.date, p.value]))
+  const dates = Array.from(msa.keys()).filter((d) => mw.has(d)).sort()
+  let pts = dates.map((d) => {
+    const s = msa.get(d)
+    const w = mw.get(d) * factor
+    return { date: d, 'SA Yellow Maize ($/t)': s, 'CBOT Corn ($/t)': w, 'Difference ($/t)': s - w }
+  })
+  pts = downsample(pts)
+  return { data: pts, keys: ['SA Yellow Maize ($/t)', 'CBOT Corn ($/t)', 'Difference ($/t)'] }
+}
+
 // Ratio A / B on dates where both exist (e.g. Platinum/Gold).
 export async function buildRatioSeries(a, b, anchorISO, range, label) {
   const from = rangeStart(anchorISO, range)

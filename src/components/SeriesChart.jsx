@@ -4,7 +4,7 @@ import {
 } from 'recharts'
 import {
   buildValueSeries, buildSpreadSeries, buildIndexedSeries, buildNitrogenSpread,
-  buildRatioSeries, buildCorrelation, buildSpongePremium,
+  buildRatioSeries, buildCorrelation, buildSpongePremium, buildCornCompare,
 } from '../lib/series'
 import { fmtNum } from '../lib/format'
 
@@ -65,6 +65,13 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           res = await buildSpongePremium(
             { instrumentId: na.instrument_id }, { instrumentId: eu.instrument_id },
             { instrumentId: spot.instrument_id }, anchorISO, range, 'Sponge premium (60dma, $/oz)',
+          )
+        } else if (def.chart_type === 'corn_compare') {
+          const sa = def.series.find((s) => s.role === 'sa')
+          const world = def.series.find((s) => s.role === 'world')
+          res = await buildCornCompare(
+            { instrumentId: sa.instrument_id }, { instrumentId: world.instrument_id },
+            anchorISO, range,
           )
         } else if (def.chart_type === 'ratio') {
           const a = def.series.find((s) => s.role === 'spread_a')
