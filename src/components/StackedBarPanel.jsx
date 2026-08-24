@@ -6,8 +6,12 @@ import * as XLSX from 'xlsx'
 import { updateChart } from '../lib/charts'
 import { fmtNum } from '../lib/format'
 
-function color(i, n) {
-  return `hsl(${Math.round((i * 360) / Math.max(n, 1))}, 62%, 55%)`
+// Golden-angle hue stepping so adjacent stacked segments look distinct (not
+// two reds in a row), with alternating lightness for extra separation.
+function color(i) {
+  const h = Math.round((i * 137.508) % 360)
+  const l = 42 + (i % 3) * 9
+  return `hsl(${h}, 65%, ${l}%)`
 }
 
 const isYear = (v) =>
@@ -98,6 +102,7 @@ export default function StackedBarPanel({ chart, onSaved }) {
   return (
     <div>
       {data.length ? (
+        <>
         <div style={{ width: '100%', height: 360 }}>
           <ResponsiveContainer>
             <BarChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
@@ -106,11 +111,19 @@ export default function StackedBarPanel({ chart, onSaved }) {
               <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550" width={70} tickFormatter={(v) => fmtNum(v)} />
               <Tooltip content={<CustomTip />} />
               {keys.map((k, i) => (
-                <Bar key={k} dataKey={k} stackId="a" fill={color(i, keys.length)} isAnimationActive={false} />
+                <Bar key={k} dataKey={k} stackId="a" fill={color(i)} isAnimationActive={false} />
               ))}
             </BarChart>
           </ResponsiveContainer>
         </div>
+        <div className="stack-legend">
+          {keys.map((k, i) => (
+            <span className="leg" key={k}>
+              <i style={{ background: color(i) }} />{k}
+            </span>
+          ))}
+        </div>
+        </>
       ) : (
         <div className="image-drop-empty" onDragOver={(e) => e.preventDefault()} onDrop={onDrop}>
           Drag an Excel table here (company rows × year columns) — or use Upload below.

@@ -313,6 +313,17 @@ a { color: var(--accent); }
 .drag-handle:active { cursor: grabbing; }
 .pack-item.dragging { opacity: 0.45; outline: 2px dashed var(--accent); }
 
+/* Stacked-bar legend (many series) */
+.stack-legend {
+  display: flex; flex-wrap: wrap; gap: 4px 14px;
+  margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--border);
+}
+.stack-legend .leg {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 11px; color: var(--muted); white-space: nowrap;
+}
+.stack-legend .leg i { width: 10px; height: 10px; border-radius: 2px; flex: 0 0 auto; }
+
 /* Image panel (pasted screenshots) */
 .pack-image { width: 100%; height: auto; border-radius: 8px; border: 1px solid var(--border); display: block; }
 .image-frame { position: relative; border-radius: 10px; cursor: pointer; outline: none; }
