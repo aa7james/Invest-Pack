@@ -143,6 +143,15 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
   if (state.loading) return <div className="chart-msg" style={{ height }}>Loading chart…</div>
   if (!state.data.length) return <div className="chart-msg" style={{ height }}>No data in this range.</div>
 
+  // On a seasonal overlay, highlight the current (latest) crop year: bright,
+  // thick, and drawn on top of the faded historical years.
+  const seasonal = state.xKey === 'month'
+  const currentKey = seasonal ? state.keys[state.keys.length - 1] : null
+  const colorFor = (k, i) => (k === currentKey ? '#ffffff' : lineColor(i, state.keys.length))
+  const orderedKeys = seasonal
+    ? [...state.keys.filter((k) => k !== currentKey), currentKey]
+    : state.keys
+
   return (
     <div>
       <div style={{ width: '100%', height }}>
@@ -157,20 +166,30 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
               contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
               labelStyle={{ color: '#e7ecf5' }}
               formatter={(v) => fmtNum(v)} />
-            {state.keys.map((k, i) => (
-              <Line key={k} type="monotone" dataKey={k} stroke={lineColor(i, state.keys.length)}
-                dot={false} strokeWidth={1.6} connectNulls isAnimationActive={false} />
-            ))}
+            {orderedKeys.map((k) => {
+              const i = state.keys.indexOf(k)
+              const isCurrent = k === currentKey
+              return (
+                <Line key={k} type="monotone" dataKey={k} stroke={colorFor(k, i)}
+                  dot={false} strokeWidth={isCurrent ? 3.4 : 1.4}
+                  strokeOpacity={seasonal && !isCurrent ? 0.55 : 1}
+                  connectNulls isAnimationActive={false} />
+              )
+            })}
           </LineChart>
         </ResponsiveContainer>
       </div>
       <div className="chart-legend">
-        {state.keys.map((k, i) => (
-          <span className="leg" key={k}>
-            <i style={{ background: lineColor(i, state.keys.length) }} />
-            {k}: <strong>{fmtNum(state.last[k])}</strong>
-          </span>
-        ))}
+        {state.keys.map((k, i) => {
+          const isCurrent = k === currentKey
+          return (
+            <span className="leg" key={k}
+              style={isCurrent ? { color: '#fff', fontWeight: 700 } : undefined}>
+              <i style={{ background: colorFor(k, i) }} />
+              {k}: <strong>{fmtNum(state.last[k])}</strong>
+            </span>
+          )
+        })}
       </div>
     </div>
   )
