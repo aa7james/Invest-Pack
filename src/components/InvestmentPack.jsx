@@ -85,10 +85,12 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag })
               </div>
               {cropOpen && (
                 <CropDataEditor
+                  chart={chart}
                   deliveriesInst={deliveriesInst}
                   adjustmentsInst={adjustmentsInst}
                   onClose={() => setCropOpen(false)}
                   onSaved={() => setReloadKey((k) => k + 1)}
+                  onChanged={onChanged}
                 />
               )}
             </div>

@@ -1,17 +1,30 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchManualSeries, addManualDataPoints, deleteManualDataPoints } from '../lib/data'
+import { updateChart } from '../lib/charts'
 import { fmtNum } from '../lib/format'
 
 // Weekly crop-progress editor, mirroring the SAGIS table: you enter the raw
 // "Prod deliveries" and "Adjustments" for each week; the app shows Week Total
 // (= deliveries + adjustments) and the running Prog Total (cumulative within the
 // season, May→April). Deliveries and Adjustments are stored as two manual series.
-export default function CropDataEditor({ deliveriesInst, adjustmentsInst, onClose, onSaved }) {
+export default function CropDataEditor({ chart, deliveriesInst, adjustmentsInst, onClose, onSaved, onChanged }) {
   const [rows, setRows] = useState([])   // {obs_date, del, adj} newest first
   const [origDates, setOrigDates] = useState(new Set())
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [msg, setMsg] = useState(null)
+  const [link, setLink] = useState((chart && chart.source_url) || '')
+  const [linkMsg, setLinkMsg] = useState(null)
+
+  async function saveLink() {
+    try {
+      await updateChart(chart.id, { source_url: link.trim() || null })
+      setLinkMsg({ kind: 'good', text: 'Link saved.' })
+      onChanged && onChanged()
+    } catch (e) {
+      setLinkMsg({ kind: 'bad', text: `Couldn't save link: ${e.message || e}` })
+    }
+  }
 
   useEffect(() => {
     (async () => {
@@ -103,6 +116,18 @@ export default function CropDataEditor({ deliveriesInst, adjustmentsInst, onClos
 
         <div className="editor-warning">
           Check old data from the source against what is included in here. Data is revised
+        </div>
+
+        <div className="editor-link">
+          <span className="manual-label">Source link</span>
+          <input className="input" style={{ marginBottom: 0, flex: 1, minWidth: 200 }}
+            placeholder="Paste the source URL (e.g. https://www.sagis.org.za/...)"
+            value={link} onChange={(e) => setLink(e.target.value)} />
+          <button className="btn small" onClick={saveLink}>Save link</button>
+          {link.trim() && (
+            <a className="manual-link" href={link.trim()} target="_blank" rel="noreferrer">Open ↗</a>
+          )}
+          {linkMsg && <span className={`inline-msg ${linkMsg.kind}`}>{linkMsg.text}</span>}
         </div>
 
         {loading ? (

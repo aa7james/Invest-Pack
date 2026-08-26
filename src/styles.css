@@ -358,6 +358,7 @@ a { color: var(--accent); }
 }
 .modal-panel.wide { max-width: 760px; }
 .editor-warning { margin: 10px 16px 0; padding: 8px 12px; border: 1px solid #e5674f; border-radius: 8px; background: rgba(229, 103, 79, 0.12); color: #ff6b52; font-weight: 700; font-size: 13px; }
+.editor-link { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 16px 0; }
 .modal-table .calc { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; padding-right: 12px; }
 .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--border); }
 .modal-head h3 { margin: 0; font-size: 15px; }
