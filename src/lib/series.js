@@ -227,6 +227,59 @@ export async function buildSeasonal(instrumentId, startMonth = 5, maxSeasons = 1
   return { data, keys: seasons, xKey: 'month' }
 }
 
+// Weekly maize crop progress. Two manual series hold the raw SAGIS inputs
+// (Prod deliveries + Adjustments, in tons). Per week: Week Total = deliveries +
+// adjustments; within a season (May start) we cumulate to the running Prog Total
+// and convert to million tons. Seasons overlay on a common week axis (1..52) so
+// the current partial season simply ends at its last week (no flat carry-over),
+// and only the most recent `maxSeasons` years are shown (the pack shows 11).
+const CROP_MONTHS = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr']
+
+export async function buildCropProgress(deliveriesId, adjustmentsId, maxSeasons = 11) {
+  const ids = [deliveriesId, adjustmentsId].filter((x) => x != null)
+  const obs = await fetchObservations(ids, null)
+  const del = obs.get(deliveriesId) || []
+  const adj = new Map((obs.get(adjustmentsId) || []).map((p) => [p.date, p.value]))
+
+  const bySeason = {}
+  for (const p of del) {
+    const [y, m] = p.date.split('-').map(Number)
+    const season = m >= 5 ? y : y - 1
+    if (!bySeason[season]) bySeason[season] = []
+    bySeason[season].push({ date: p.date, total: p.value + (adj.get(p.date) || 0) })
+  }
+  let seasons = Object.keys(bySeason).sort()
+  if (seasons.length > maxSeasons) seasons = seasons.slice(seasons.length - maxSeasons)
+
+  const cumBySeason = {}
+  let maxWeeks = 0
+  for (const s of seasons) {
+    const arr = bySeason[s].sort((a, b) => (a.date < b.date ? -1 : 1))
+    let run = 0
+    cumBySeason[s] = arr.map((x) => { run += x.total; return run / 1e6 })
+    maxWeeks = Math.max(maxWeeks, cumBySeason[s].length)
+  }
+
+  const data = []
+  for (let i = 0; i < maxWeeks; i++) {
+    const row = { week: i + 1 }
+    for (const s of seasons) row[s] = i < cumBySeason[s].length ? cumBySeason[s][i] : null
+    data.push(row)
+  }
+
+  // Month tick positions: label the week where each calendar month first begins.
+  const ticks = []
+  const tickLabels = {}
+  let lastM = -1
+  for (let i = 0; i < maxWeeks; i++) {
+    const d = new Date(Date.UTC(2025, 4, 1))
+    d.setUTCDate(d.getUTCDate() + 7 * i)
+    const mi = (d.getUTCMonth() - 4 + 12) % 12
+    if (mi !== lastM) { ticks.push(i + 1); tickLabels[i + 1] = CROP_MONTHS[mi]; lastM = mi }
+  }
+  return { data, keys: seasons, xKey: 'week', ticks, tickLabels }
+}
+
 // SA maize (USD/t) vs world corn (CBOT cents/bushel -> $/t via x0.393683) + the
 // difference, on a comparable basis. Mirrors the pack's SA Corn vs World Corn.
 export async function buildCornCompare(sa, world, anchorISO, range, factor = 0.393683) {

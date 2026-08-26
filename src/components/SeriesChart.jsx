@@ -5,6 +5,7 @@ import {
 import {
   buildValueSeries, buildSpreadSeries, buildIndexedSeries, buildNitrogenSpread,
   buildRatioSeries, buildCorrelation, buildSpongePremium, buildCornCompare, buildSeasonal,
+  buildCropProgress,
 } from '../lib/series'
 import { fmtNum } from '../lib/format'
 
@@ -39,7 +40,7 @@ function keysFor(series, instrumentsById) {
 }
 
 export default function SeriesChart({ def, range, anchorISO, instrumentsById, height = 280, reloadKey = 0 }) {
-  const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {}, xKey: 'date' })
+  const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {}, xKey: 'date', ticks: null, tickLabels: null })
 
   useEffect(() => {
     let alive = true
@@ -47,7 +48,11 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
     ;(async () => {
       try {
         let res
-        if (def.chart_type === 'seasonal') {
+        if (def.chart_type === 'crop_progress') {
+          const d = def.series.find((s) => s.role === 'deliveries')
+          const a = def.series.find((s) => s.role === 'adjustments')
+          res = await buildCropProgress(d?.instrument_id, a?.instrument_id)
+        } else if (def.chart_type === 'seasonal') {
           res = await buildSeasonal(def.series[0].instrument_id)
         } else if (def.chart_type === 'nitrogen_spread') {
           const a = def.series.find((s) => s.role === 'spread_a')
@@ -131,7 +136,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
             if (res.data[i][k] != null) { last[k] = res.data[i][k]; break }
           }
         }
-        setState({ loading: false, data: res.data, keys: res.keys, error: null, last, xKey: res.xKey || 'date' })
+        setState({ loading: false, data: res.data, keys: res.keys, error: null, last, xKey: res.xKey || 'date', ticks: res.ticks || null, tickLabels: res.tickLabels || null })
       } catch (e) {
         if (alive) setState({ loading: false, data: [], keys: [], error: e.message || String(e), last: {} })
       }
@@ -145,7 +150,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
 
   // On a seasonal overlay, highlight the current (latest) crop year: bright,
   // thick, and drawn on top of the faded historical years.
-  const seasonal = state.xKey === 'month'
+  const seasonal = state.xKey === 'month' || state.xKey === 'week'
   const currentKey = seasonal ? state.keys[state.keys.length - 1] : null
   const colorFor = (k, i) => (k === currentKey ? '#ffffff' : lineColor(i, state.keys.length))
   const orderedKeys = seasonal
@@ -158,13 +163,20 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
         <ResponsiveContainer>
           <LineChart data={state.data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
             <CartesianGrid stroke="#2a3550" strokeDasharray="3 3" />
-            <XAxis dataKey={state.xKey} tickFormatter={state.xKey === 'date' ? axisDate : undefined}
+            <XAxis dataKey={state.xKey}
+              tickFormatter={state.xKey === 'date' ? axisDate
+                : state.xKey === 'week' ? (w) => (state.tickLabels && state.tickLabels[w]) || ''
+                : undefined}
+              ticks={state.xKey === 'week' && state.ticks ? state.ticks : undefined}
               tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={state.xKey === 'date' ? 60 : 0} stroke="#2a3550" />
             <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
               domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={70} />
             <Tooltip
               contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
               labelStyle={{ color: '#e7ecf5' }}
+              labelFormatter={state.xKey === 'week'
+                ? (w) => `${(state.tickLabels && state.tickLabels[w]) || 'Week'} · week ${w}`
+                : undefined}
               formatter={(v) => fmtNum(v)} />
             {orderedKeys.map((k) => {
               const i = state.keys.indexOf(k)

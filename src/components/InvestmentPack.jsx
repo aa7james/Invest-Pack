@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import SeriesChart from './SeriesChart'
 import ManualDataEntry from './ManualDataEntry'
+import CropDataEditor from './CropDataEditor'
 import ImagePanel from './ImagePanel'
 import StackedBarPanel from './StackedBarPanel'
 import Lazy from './Lazy'
@@ -17,11 +18,21 @@ function catRank(cat) {
 function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag }) {
   const [note, setNote] = useState(chart.annotation || '')
   const [reloadKey, setReloadKey] = useState(0)
+  const [cropOpen, setCropOpen] = useState(false)
   const ref = useRef(null)
 
   const manualInstrument = (chart.series || [])
     .map((s) => instrumentsById.get(s.instrument_id))
     .find((inst) => inst && inst.source === 'manual')
+
+  // Weekly crop-progress charts have two manual inputs (deliveries + adjustments).
+  const isCrop = chart.chart_type === 'crop_progress'
+  const deliveriesInst = isCrop
+    ? instrumentsById.get((chart.series || []).find((s) => s.role === 'deliveries')?.instrument_id)
+    : null
+  const adjustmentsInst = isCrop
+    ? instrumentsById.get((chart.series || []).find((s) => s.role === 'adjustments')?.instrument_id)
+    : null
 
   async function saveNote() {
     if (note === (chart.annotation || '')) return
@@ -64,7 +75,24 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag })
             <SeriesChart def={chart} range={chart.time_range || '1Y'} anchorISO={anchorISO}
               instrumentsById={instrumentsById} height={420} reloadKey={reloadKey} />
           </Lazy>
-          {manualInstrument && (
+          {isCrop && deliveriesInst && adjustmentsInst ? (
+            <div className="manual-entry no-print">
+              <div className="manual-row">
+                <span className="manual-label">Weekly SAGIS data · deliveries + adjustments (tons)</span>
+                <div className="card-actions">
+                  <button className="btn small" onClick={() => setCropOpen(true)}>✎ Edit data</button>
+                </div>
+              </div>
+              {cropOpen && (
+                <CropDataEditor
+                  deliveriesInst={deliveriesInst}
+                  adjustmentsInst={adjustmentsInst}
+                  onClose={() => setCropOpen(false)}
+                  onSaved={() => setReloadKey((k) => k + 1)}
+                />
+              )}
+            </div>
+          ) : manualInstrument && (
             <ManualDataEntry instrument={manualInstrument} onAdded={() => setReloadKey((k) => k + 1)} />
           )}
         </>

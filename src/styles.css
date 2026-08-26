@@ -356,6 +356,8 @@ a { color: var(--accent); }
   background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
   width: 100%; max-width: 560px; max-height: 85vh; display: flex; flex-direction: column;
 }
+.modal-panel.wide { max-width: 760px; }
+.modal-table .calc { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; padding-right: 12px; }
 .modal-head { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; border-bottom: 1px solid var(--border); }
 .modal-head h3 { margin: 0; font-size: 15px; }
 .modal-toolbar { display: flex; justify-content: space-between; align-items: center; padding: 10px 16px; gap: 10px; }
