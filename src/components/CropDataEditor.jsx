@@ -101,6 +101,10 @@ export default function CropDataEditor({ deliveriesInst, adjustmentsInst, onClos
           <button className="btn small ghost" onClick={onClose}>Close</button>
         </div>
 
+        <div className="editor-warning">
+          Check old data from the source against what is included in here. Data is revised
+        </div>
+
         {loading ? (
           <div className="center">Loading…</div>
         ) : (
