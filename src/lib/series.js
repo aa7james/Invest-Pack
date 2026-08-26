@@ -186,8 +186,11 @@ export async function buildSpongePremium(na, eu, spot, anchorISO, range, label, 
 }
 
 // Seasonal overlay: one line per crop year, x-axis = months of the season
-// (default starting in May), from a single manual date->value series.
-export async function buildSeasonal(instrumentId, startMonth = 5) {
+// (default starting in May). The stored series holds each period's incremental
+// delivery ("the original number"); we cumulate it within each season to draw
+// the running progress total. Only the most recent `maxSeasons` years are shown
+// (the pack shows the last 11), so the chart stays readable and auto-advances.
+export async function buildSeasonal(instrumentId, startMonth = 5, maxSeasons = 11) {
   const obs = await fetchObservations([instrumentId], null)
   const pts = obs.get(instrumentId) || []
   const MONTHS = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr']
@@ -197,12 +200,28 @@ export async function buildSeasonal(instrumentId, startMonth = 5) {
     const season = m >= startMonth ? y : y - 1
     const idx = (m - startMonth + 12) % 12
     if (!bySeason[season]) bySeason[season] = {}
-    bySeason[season][idx] = p.value
+    // Sum deliveries landing in the same season-month before cumulating.
+    bySeason[season][idx] = (bySeason[season][idx] ?? 0) + p.value
   }
-  const seasons = Object.keys(bySeason).sort()
+  let seasons = Object.keys(bySeason).sort()
+  if (seasons.length > maxSeasons) seasons = seasons.slice(seasons.length - maxSeasons)
+
+  // Running (cumulative) total across the season's months.
+  const cum = {}
+  for (const s of seasons) {
+    let running = 0
+    let started = false
+    cum[s] = MONTHS.map((_, idx) => {
+      const v = bySeason[s][idx]
+      if (v == null) return started ? running : null
+      running += v
+      started = true
+      return running
+    })
+  }
   const data = MONTHS.map((mon, idx) => {
     const row = { month: mon }
-    for (const s of seasons) row[s] = bySeason[s][idx] ?? null
+    for (const s of seasons) row[s] = cum[s][idx]
     return row
   })
   return { data, keys: seasons, xKey: 'month' }
