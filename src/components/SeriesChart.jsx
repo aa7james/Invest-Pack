@@ -7,6 +7,7 @@ import {
   buildValueSeries, buildSpreadSeries, buildIndexedSeries, buildNitrogenSpread,
   buildRatioSeries, buildCorrelation, buildSpongePremium, buildCornCompare, buildSeasonal,
   buildCropProgress, buildIqfRatio, buildProxyFeed, buildRolling12,
+  buildOemShare, buildHireRolling,
 } from '../lib/series'
 import { fmtNum } from '../lib/format'
 
@@ -51,6 +52,16 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
         let res
         if (def.chart_type === 'rolling12') {
           res = await buildRolling12(def.series[0].instrument_id)
+        } else if (def.chart_type === 'oem_share') {
+          const brandSeries = def.series.map((s) => ({
+            name: (instrumentsById.get(s.instrument_id)?.name || '').replace(/^OEM: /, ''),
+            instrumentId: s.instrument_id,
+          }))
+          res = await buildOemShare(brandSeries)
+        } else if (def.chart_type === 'hire_rolling') {
+          const pct = def.series.find((s) => s.role === 'pct')
+          const tot = def.series.find((s) => s.role === 'total')
+          res = await buildHireRolling(pct?.instrument_id, tot?.instrument_id)
         } else if (def.chart_type === 'stacked_area') {
           const withKeys = keysFor(def.series, instrumentsById)
           res = await buildValueSeries(withKeys.map((s) => ({ key: s.key, instrumentId: s.instrument_id })), anchorISO, 'ALL')

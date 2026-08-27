@@ -220,6 +220,65 @@ export async function buildSeasonal(instrumentId, startMonth = 1, maxSeasons = 8
   return { data, keys: seasons, xKey: 'month' }
 }
 
+// OEM market share: each group's brand-unit sum divided by the total, monthly.
+// Brands map to groups exactly as the workbook does (BYD sits in China). Input
+// is the per-brand monthly units; the shares are computed here.
+const OEM_GROUPS = {
+  China: ['GWM/haval', 'Chery', 'Jetour', 'Omoda and Jaecoo', 'BYD'],
+  India: ['Suzuki', 'Mahindra'],
+  Motus: ['Hyundai', 'Kia', 'Renault'],
+  Toyota: ['Toyota'],
+  Germany: ['VW', 'BMW'],
+  Rest: ['Nissan', 'Ford', 'Isuzu'],
+}
+const OEM_ORDER = ['China', 'India', 'Motus', 'Toyota', 'Germany', 'Rest']
+
+export async function buildOemShare(brandSeries) {
+  // brandSeries: [{ name, instrumentId }]
+  const ids = brandSeries.map((b) => b.instrumentId)
+  const obs = await fetchObservations(ids, null)
+  const byBrand = {}
+  const monthSet = new Set()
+  for (const b of brandSeries) {
+    const m = new Map((obs.get(b.instrumentId) || []).map((p) => [p.date, p.value]))
+    byBrand[b.name] = m
+    for (const d of m.keys()) monthSet.add(d)
+  }
+  const months = [...monthSet].sort()
+  const data = months.map((d) => {
+    const row = { date: d }
+    const groupVal = {}
+    let total = 0
+    for (const g of OEM_ORDER) {
+      let sum = 0
+      for (const brand of OEM_GROUPS[g]) sum += byBrand[brand]?.get(d) || 0
+      groupVal[g] = sum
+      total += sum
+    }
+    for (const g of OEM_ORDER) row[g] = total ? (groupVal[g] / total) * 100 : null
+    return row
+  })
+  return { data, keys: OEM_ORDER, xKey: 'date' }
+}
+
+// Cars sold for hire: monthly # = (% sold for hire) * (total cars), then the
+// trailing 12-month rolling sum. Inputs are the % and the total.
+export async function buildHireRolling(pctId, totalId, window = 12) {
+  const obs = await fetchObservations([pctId, totalId].filter((x) => x != null), null)
+  const pct = new Map((obs.get(pctId) || []).map((p) => [p.date, p.value]))
+  const tot = new Map((obs.get(totalId) || []).map((p) => [p.date, p.value]))
+  const months = [...pct.keys()].filter((d) => tot.has(d)).sort()
+  const monthly = months.map((d) => ({ date: d, n: pct.get(d) * tot.get(d) }))
+  const K = 'Rolling 12 Months'
+  const out = []
+  for (let i = window - 1; i < monthly.length; i++) {
+    let sum = 0
+    for (let j = i - window + 1; j <= i; j++) sum += monthly[j].n
+    out.push({ date: monthly[i].date, [K]: sum })
+  }
+  return { data: out, keys: [K], xKey: 'date' }
+}
+
 // Trailing N-month rolling sum of a monthly series (e.g. SA vehicle volumes,
 // cars sold for hire). Auto-extends as new months are added.
 export async function buildRolling12(instrumentId, window = 12) {
