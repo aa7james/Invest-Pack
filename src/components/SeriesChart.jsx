@@ -5,7 +5,7 @@ import {
 import {
   buildValueSeries, buildSpreadSeries, buildIndexedSeries, buildNitrogenSpread,
   buildRatioSeries, buildCorrelation, buildSpongePremium, buildCornCompare, buildSeasonal,
-  buildCropProgress, buildIqfRatio,
+  buildCropProgress, buildIqfRatio, buildProxyFeed,
 } from '../lib/series'
 import { fmtNum } from '../lib/format'
 
@@ -52,12 +52,20 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           const d = def.series.find((s) => s.role === 'deliveries')
           const a = def.series.find((s) => s.role === 'adjustments')
           res = await buildCropProgress(d?.instrument_id, a?.instrument_id)
+        } else if (def.chart_type === 'proxy_feed') {
+          const mz = def.series.find((s) => s.role === 'maize')
+          const so = def.series.find((s) => s.role === 'soya')
+          const st = def.series.find((s) => s.role === 'feedstore')
+          res = await buildProxyFeed(mz?.instrument_id, so?.instrument_id, st?.instrument_id)
         } else if (def.chart_type === 'iqf_ratio' || def.chart_type === 'iqf_ratio_lag') {
           const sh = def.series.find((s) => s.role === 'share')
-          const iq = def.series.find((s) => s.role === 'iqf')
-          const fe = def.series.find((s) => s.role === 'feed')
+          const po = def.series.find((s) => s.role === 'poultry')
+          const mz = def.series.find((s) => s.role === 'maize')
+          const so = def.series.find((s) => s.role === 'soya')
+          const st = def.series.find((s) => s.role === 'feedstore')
           const lag = def.chart_type === 'iqf_ratio_lag' ? 6 : 0
-          res = await buildIqfRatio(sh?.instrument_id, iq?.instrument_id, fe?.instrument_id, lag)
+          res = await buildIqfRatio(sh?.instrument_id, po?.instrument_id, mz?.instrument_id,
+            so?.instrument_id, st?.instrument_id, lag)
         } else if (def.chart_type === 'seasonal') {
           res = await buildSeasonal(def.series[0].instrument_id)
         } else if (def.chart_type === 'nitrogen_spread') {

@@ -235,27 +235,65 @@ function monthlyLast(pts) {
   return m
 }
 
-// IQF-to-feed valuation chart: a share price (left axis, line) against the
-// IQF / Proxy-Feed ratio (right axis, bars), monthly. `lagMonths` lags the feed
-// (e.g. 6-month lagged feed). Any missing input just leaves that month blank.
-export async function buildIqfRatio(shareId, iqfId, feedId, lagMonths = 0) {
-  const ids = [shareId, iqfId, feedId].filter((x) => x != null)
+// Proxy broiler feed price, per the Chicken Dashboard workbook:
+//   Proxy Feed = 0.67 * Maize + 0.33 * Soya Meal,   Soya Meal = 0.9229 * SSPPSBID.
+// SSPPSBID (the ZAR soybean index) only exists recently, so months in that era
+// are computed live from Bloomberg (auto-updating); earlier months fall back to
+// the stored historical values loaded from the workbook.
+const PROXY_MAIZE_W = 0.67
+const PROXY_SOYA_W = 0.33
+const SOYA_MEAL_K = 0.9229
+
+function computeProxyMonthly(maizeM, sspM, storedM) {
+  const months = new Set([...maizeM.keys(), ...sspM.keys(), ...storedM.keys()])
+  const out = new Map()
+  for (const m of months) {
+    if (sspM.has(m) && maizeM.has(m)) {
+      out.set(m, PROXY_MAIZE_W * maizeM.get(m) + PROXY_SOYA_W * SOYA_MEAL_K * sspM.get(m))
+    } else if (storedM.has(m)) {
+      out.set(m, storedM.get(m))
+    }
+  }
+  return out
+}
+
+// Computed Proxy Feed Price line (see computeProxyMonthly above).
+export async function buildProxyFeed(maizeId, sspId, storedId) {
+  const ids = [maizeId, sspId, storedId].filter((x) => x != null)
+  const obs = await fetchObservations(ids, null)
+  const proxy = computeProxyMonthly(
+    monthlyLast(obs.get(maizeId) || []), monthlyLast(obs.get(sspId) || []),
+    monthlyLast(obs.get(storedId) || []),
+  )
+  const K = 'Proxy Feed Price'
+  const data = [...proxy.keys()].sort().map((m) => ({ date: `${m}-01`, [K]: proxy.get(m) }))
+  return { data, keys: [K], xKey: 'date' }
+}
+
+// IQF-to-feed valuation chart: ARL share price (left axis, line) against the
+// IQF / Proxy-Feed ratio (right axis, bars), monthly. IQF = the poultry price
+// (c/kg) / 100, i.e. R/kg; the proxy feed is the computed series above (in
+// R/ton), so ×1000 puts them on the same per-tonne basis. `lagMonths` lags the
+// feed (e.g. the 6-month-lagged chart).
+export async function buildIqfRatio(shareId, poultryId, maizeId, sspId, storedFeedId, lagMonths = 0) {
+  const ids = [shareId, poultryId, maizeId, sspId, storedFeedId].filter((x) => x != null)
   const obs = await fetchObservations(ids, null)
   const share = monthlyLast(obs.get(shareId) || [])
-  const iqf = monthlyLast(obs.get(iqfId) || [])
-  const feed = monthlyLast(obs.get(feedId) || [])
-  const months = Array.from(new Set([...share.keys(), ...iqf.keys()])).sort()
+  const poultry = monthlyLast(obs.get(poultryId) || [])
+  const proxy = computeProxyMonthly(
+    monthlyLast(obs.get(maizeId) || []), monthlyLast(obs.get(sspId) || []),
+    monthlyLast(obs.get(storedFeedId) || []),
+  )
+  const months = Array.from(new Set([...share.keys(), ...poultry.keys()])).sort()
   const SHARE = 'ARL Share Price'
   const RATIO = lagMonths ? `IQF / ${lagMonths}m-lagged Proxy Feed` : 'IQF / Proxy Feed'
-  // IQF is stored in R/kg, Proxy Feed in R/ton, so ×1000 puts them on the same
-  // per-tonne basis before dividing (matches the pack's ~5-16 ratio).
   const data = months.map((k) => {
-    const f = feed.get(shiftMonth(k, lagMonths))
-    const iv = iqf.get(k)
+    const f = proxy.get(shiftMonth(k, lagMonths))
+    const iqf = poultry.has(k) ? poultry.get(k) / 100 : null   // c/kg -> R/kg
     return {
       date: `${k}-01`,
       [SHARE]: share.get(k) ?? null,
-      [RATIO]: (iv != null && f) ? (iv * 1000) / f : null,
+      [RATIO]: (iqf != null && f) ? (iqf * 1000) / f : null,
     }
   })
   return {
