@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import {
-  ResponsiveContainer, ComposedChart, LineChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ComposedChart, LineChart, AreaChart, Area, Line, Bar,
+  XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts'
 import {
   buildValueSeries, buildSpreadSeries, buildIndexedSeries, buildNitrogenSpread,
   buildRatioSeries, buildCorrelation, buildSpongePremium, buildCornCompare, buildSeasonal,
-  buildCropProgress, buildIqfRatio, buildProxyFeed,
+  buildCropProgress, buildIqfRatio, buildProxyFeed, buildRolling12,
 } from '../lib/series'
 import { fmtNum } from '../lib/format'
 
@@ -40,7 +41,7 @@ function keysFor(series, instrumentsById) {
 }
 
 export default function SeriesChart({ def, range, anchorISO, instrumentsById, height = 280, reloadKey = 0 }) {
-  const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {}, xKey: 'date', ticks: null, tickLabels: null, dual: null })
+  const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {}, xKey: 'date', ticks: null, tickLabels: null, dual: null, stacked: false })
 
   useEffect(() => {
     let alive = true
@@ -48,7 +49,13 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
     ;(async () => {
       try {
         let res
-        if (def.chart_type === 'crop_progress') {
+        if (def.chart_type === 'rolling12') {
+          res = await buildRolling12(def.series[0].instrument_id)
+        } else if (def.chart_type === 'stacked_area') {
+          const withKeys = keysFor(def.series, instrumentsById)
+          res = await buildValueSeries(withKeys.map((s) => ({ key: s.key, instrumentId: s.instrument_id })), anchorISO, 'ALL')
+          res = { ...res, stacked: true }
+        } else if (def.chart_type === 'crop_progress') {
           const d = def.series.find((s) => s.role === 'deliveries')
           const a = def.series.find((s) => s.role === 'adjustments')
           res = await buildCropProgress(d?.instrument_id, a?.instrument_id)
@@ -150,7 +157,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
             if (res.data[i][k] != null) { last[k] = res.data[i][k]; break }
           }
         }
-        setState({ loading: false, data: res.data, keys: res.keys, error: null, last, xKey: res.xKey || 'date', ticks: res.ticks || null, tickLabels: res.tickLabels || null, dual: res.dual || null })
+        setState({ loading: false, data: res.data, keys: res.keys, error: null, last, xKey: res.xKey || 'date', ticks: res.ticks || null, tickLabels: res.tickLabels || null, dual: res.dual || null, stacked: res.stacked || false })
       } catch (e) {
         if (alive) setState({ loading: false, data: [], keys: [], error: e.message || String(e), last: {} })
       }
@@ -193,6 +200,40 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           {state.keys.map((k, i) => (
             <span className="leg" key={k}>
               <i style={{ background: left.includes(k) ? '#6c7a99' : '#e0a13a' }} />
+              {k}: <strong>{fmtNum(state.last[k])}</strong>
+            </span>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Stacked area chart (e.g. new + used vehicle finance applications).
+  if (state.stacked) {
+    return (
+      <div>
+        <div style={{ width: '100%', height }}>
+          <ResponsiveContainer>
+            <AreaChart data={state.data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+              <CartesianGrid stroke="#2a3550" strokeDasharray="3 3" />
+              <XAxis dataKey="date" tickFormatter={axisDate}
+                tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={60} stroke="#2a3550" />
+              <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
+                domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={70} />
+              <Tooltip contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: '#e7ecf5' }} labelFormatter={axisDate} formatter={(v) => fmtNum(v)} />
+              {state.keys.map((k, i) => (
+                <Area key={k} type="monotone" dataKey={k} stackId="1"
+                  stroke={CHART_COLORS[i % CHART_COLORS.length]} fill={CHART_COLORS[i % CHART_COLORS.length]}
+                  fillOpacity={0.55} isAnimationActive={false} />
+              ))}
+            </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="chart-legend">
+          {state.keys.map((k, i) => (
+            <span className="leg" key={k}>
+              <i style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
               {k}: <strong>{fmtNum(state.last[k])}</strong>
             </span>
           ))}

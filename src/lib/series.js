@@ -220,6 +220,25 @@ export async function buildSeasonal(instrumentId, startMonth = 1, maxSeasons = 8
   return { data, keys: seasons, xKey: 'month' }
 }
 
+// Trailing N-month rolling sum of a monthly series (e.g. SA vehicle volumes,
+// cars sold for hire). Auto-extends as new months are added.
+export async function buildRolling12(instrumentId, window = 12) {
+  const obs = await fetchObservations([instrumentId], null)
+  const pts = (obs.get(instrumentId) || []).slice().sort((a, b) => (a.date < b.date ? -1 : 1))
+  const K = 'Rolling 12 Months'
+  const out = []
+  for (let i = window - 1; i < pts.length; i++) {
+    let sum = 0
+    let ok = true
+    for (let j = i - window + 1; j <= i; j++) {
+      if (pts[j].value == null) { ok = false; break }
+      sum += pts[j].value
+    }
+    if (ok) out.push({ date: pts[i].date, [K]: sum })
+  }
+  return { data: downsample(out), keys: [K], xKey: 'date' }
+}
+
 // Shift a 'YYYY-MM' month key back by n months.
 function shiftMonth(key, n) {
   let [y, m] = key.split('-').map(Number)
