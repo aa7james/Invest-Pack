@@ -247,13 +247,15 @@ export async function buildIqfRatio(shareId, iqfId, feedId, lagMonths = 0) {
   const months = Array.from(new Set([...share.keys(), ...iqf.keys()])).sort()
   const SHARE = 'ARL Share Price'
   const RATIO = lagMonths ? `IQF / ${lagMonths}m-lagged Proxy Feed` : 'IQF / Proxy Feed'
+  // IQF is stored in R/kg, Proxy Feed in R/ton, so ×1000 puts them on the same
+  // per-tonne basis before dividing (matches the pack's ~5-16 ratio).
   const data = months.map((k) => {
     const f = feed.get(shiftMonth(k, lagMonths))
     const iv = iqf.get(k)
     return {
       date: `${k}-01`,
       [SHARE]: share.get(k) ?? null,
-      [RATIO]: (iv != null && f) ? iv / f : null,
+      [RATIO]: (iv != null && f) ? (iv * 1000) / f : null,
     }
   })
   return {
