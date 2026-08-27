@@ -20,34 +20,43 @@ export function rangeStart(anchorISO, range) {
   return d.toISOString().slice(0, 10)
 }
 
-// Fetch all observations for the given instrument ids from `fromISO` onward,
-// paginating past the 1000-row limit. Returns Map<instrument_id, [{date,value}]>.
-export async function fetchObservations(instrumentIds, fromISO) {
-  const out = new Map()
-  if (!instrumentIds.length) return out
-  for (const id of instrumentIds) out.set(id, [])
+// Session cache: each instrument's history is downloaded at most once (keyed by
+// instrument id + from-date), so charts that share instruments don't refetch.
+const _obsCache = new Map()
+export function clearObsCache() { _obsCache.clear() }
 
+async function fetchOneInstrument(id, fromISO) {
+  const key = `${id}|${fromISO || 'all'}`
+  if (_obsCache.has(key)) return _obsCache.get(key)
+  const pts = []
   const PAGE = 1000
   let offset = 0
   while (true) {
     let q = supabase
       .from('pack_data')
-      .select('instrument_id, obs_date, value')
-      .in('instrument_id', instrumentIds)
+      .select('obs_date, value')
+      .eq('instrument_id', id)
       .order('obs_date', { ascending: true })
       .range(offset, offset + PAGE - 1)
     if (fromISO) q = q.gte('obs_date', fromISO)
-
     const { data, error } = await q
     if (error) throw error
     if (!data || data.length === 0) break
-    for (const row of data) {
-      const arr = out.get(row.instrument_id)
-      if (arr) arr.push({ date: row.obs_date, value: row.value })
-    }
+    for (const row of data) pts.push({ date: row.obs_date, value: row.value })
     if (data.length < PAGE) break
     offset += PAGE
   }
+  _obsCache.set(key, pts)
+  return pts
+}
+
+// Fetch all observations for the given instrument ids from `fromISO` onward.
+// Returns Map<instrument_id, [{date,value}]>. Uses the session cache above.
+export async function fetchObservations(instrumentIds, fromISO) {
+  const out = new Map()
+  if (!instrumentIds.length) return out
+  const results = await Promise.all(instrumentIds.map((id) => fetchOneInstrument(id, fromISO)))
+  instrumentIds.forEach((id, i) => out.set(id, results[i]))
   return out
 }
 

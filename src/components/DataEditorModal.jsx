@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { fetchManualSeries, addManualDataPoints, deleteManualDataPoints } from '../lib/data'
+import { clearObsCache } from '../lib/series'
 
 // Pop-up editor for a manual series: add / remove / change rows, then Save.
 export default function DataEditorModal({ instrument, onClose, onSaved }) {
@@ -46,6 +47,7 @@ export default function DataEditorModal({ instrument, onClose, onSaved }) {
       await addManualDataPoints(instrument.id, valid)
       const removed = [...origDates].filter((d) => !seen.has(d))
       if (removed.length) await deleteManualDataPoints(instrument.id, removed)
+      clearObsCache()
       setMsg({ kind: 'good', text: `Saved ${valid.length} rows${removed.length ? `, removed ${removed.length}` : ''}.` })
       onSaved && onSaved()
       setTimeout(onClose, 500)

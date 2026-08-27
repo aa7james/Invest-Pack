@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchManualSeries, addManualDataPoints, deleteManualDataPoints } from '../lib/data'
+import { clearObsCache } from '../lib/series'
 import { updateChart } from '../lib/charts'
 import { fmtNum } from '../lib/format'
 
@@ -96,6 +97,7 @@ export default function CropDataEditor({ chart, deliveriesInst, adjustmentsInst,
         await deleteManualDataPoints(deliveriesInst.id, removed)
         await deleteManualDataPoints(adjustmentsInst.id, removed)
       }
+      clearObsCache()
       setMsg({ kind: 'good', text: `Saved ${delRows.length} weeks${removed.length ? `, removed ${removed.length}` : ''}.` })
       onSaved && onSaved()
       setTimeout(onClose, 500)
