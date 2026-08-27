@@ -5,8 +5,6 @@ import {
 } from './lib/data'
 import { fetchCharts } from './lib/charts'
 import { fmtTimestamp } from './lib/format'
-import SummaryCards from './components/SummaryCards'
-import InstrumentTable from './components/InstrumentTable'
 import ChartBuilder from './components/ChartBuilder'
 import MyCharts from './components/MyCharts'
 import InvestmentPack from './components/InvestmentPack'
@@ -15,10 +13,9 @@ const POLL_MS = 3000
 const POLL_TIMEOUT_MS = 30000
 
 const TABS = [
-  { key: 'overview', label: 'Overview' },
+  { key: 'pack', label: 'Investment Pack' },
   { key: 'builder', label: 'Chart Builder' },
   { key: 'mycharts', label: 'My Charts' },
-  { key: 'pack', label: 'Investment Pack' },
 ]
 
 export default function App() {
@@ -32,15 +29,28 @@ export default function App() {
   const [error, setError] = useState(null)
   const [banner, setBanner] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
-  const [tab, setTab] = useState('overview')
+  const [tab, setTab] = useState('pack')
 
   const pollTimer = useRef(null)
 
   const loadAll = useCallback(async () => {
     setError(null)
+    // Supabase's free tier pauses when idle, so the first query after a break can
+    // time out while it wakes up. Retry a few times before showing an error.
+    const withRetry = async (fn, tries = 4) => {
+      for (let i = 0; i < tries; i++) {
+        try { return await fn() } catch (e) {
+          const msg = e.message || String(e)
+          const transient = /timeout|fetch|network|502|503|504/i.test(msg)
+          if (i === tries - 1 || !transient) throw e
+          await new Promise((r) => setTimeout(r, 800 * (i + 1)))
+        }
+      }
+    }
     try {
       const [insts, lv, sum, req] = await Promise.all([
-        fetchInstruments(), fetchLatestValues(), fetchSummary(), fetchLatestRequest(),
+        withRetry(fetchInstruments), withRetry(fetchLatestValues),
+        withRetry(fetchSummary), withRetry(fetchLatestRequest),
       ])
       setInstruments(insts)
       setLatest(lv)
@@ -149,12 +159,6 @@ export default function App() {
         <div className="center">Loading…</div>
       ) : (
         <>
-          {tab === 'overview' && (
-            <>
-              <SummaryCards summary={summary} />
-              <InstrumentTable instruments={instruments} latest={latest} />
-            </>
-          )}
           {tab === 'builder' && (
             <ChartBuilder instruments={activeInstruments} instrumentsById={instrumentsById}
               anchorISO={anchorISO} onSaved={() => { reloadCharts(); setTab('mycharts') }} />
