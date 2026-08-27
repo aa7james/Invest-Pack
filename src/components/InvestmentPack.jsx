@@ -16,17 +16,21 @@ function catRank(cat) {
   return i === -1 ? CAT_ORDER.length : i
 }
 
-function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag }) {
+function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag, editorOwner }) {
   const [note, setNote] = useState(chart.annotation || '')
   const [reloadKey, setReloadKey] = useState(0)
   const [cropOpen, setCropOpen] = useState(false)
   const [multiOpen, setMultiOpen] = useState(false)
   const ref = useRef(null)
 
+  // Only the chart that "owns" a manual series (its first value chart) shows the
+  // editor, so a series reused by a derived view (run-rate, ratios) isn't
+  // editable in two places.
   const manualSeries = (chart.series || [])
     .map((s) => instrumentsById.get(s.instrument_id))
     .filter((inst) => inst && inst.source === 'manual')
-  const manualInstrument = manualSeries[0]
+  const ownedManual = manualSeries.filter((inst) => editorOwner.get(inst.id) === chart.id)
+  const manualInstrument = ownedManual[0]
 
   // Weekly crop-progress charts have two manual inputs (deliveries + adjustments).
   const isCrop = chart.chart_type === 'crop_progress'
@@ -97,7 +101,7 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag })
                 />
               )}
             </div>
-          ) : manualSeries.length > 1 ? (
+          ) : ownedManual.length > 1 ? (
             <div className="manual-entry no-print">
               <div className="manual-row">
                 <span className="manual-label">Manual series · add data from the source</span>
@@ -107,7 +111,7 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag })
                 <ManualMultiEditor
                   title={chart.title}
                   chart={chart}
-                  series={manualSeries.map((inst) => ({ id: inst.id, label: inst.name.replace(/^SA |^Chicken /, '') }))}
+                  series={ownedManual.map((inst) => ({ id: inst.id, label: inst.name.replace(/^SA |^Chicken /, '') }))}
                   onClose={() => setMultiOpen(false)}
                   onSaved={() => setReloadKey((k) => k + 1)}
                   onChanged={onChanged}
@@ -137,6 +141,21 @@ export default function InvestmentPack({ charts, instrumentsById, anchorISO, onC
     () => charts.filter((c) => c.in_pack).sort((a, b) => (a.pack_order - b.pack_order) || (a.id - b.id)),
     [charts],
   )
+
+  // Each manual series is editable in exactly one place: the first plain value
+  // chart (in pack order) that uses it. Derived charts (seasonal / ratios /
+  // computed feed) never show an editor — they just display.
+  const editorOwner = useMemo(() => {
+    const owner = new Map()
+    for (const c of packCharts) {
+      if (c.chart_type !== 'value') continue
+      for (const s of c.series || []) {
+        const inst = instrumentsById.get(s.instrument_id)
+        if (inst && inst.source === 'manual' && !owner.has(inst.id)) owner.set(inst.id, c.id)
+      }
+    }
+    return owner
+  }, [packCharts, instrumentsById])
 
   // Local working order (so drag feels instant); re-sync when the data changes.
   const [order, setOrder] = useState(packCharts)
@@ -250,7 +269,7 @@ export default function InvestmentPack({ charts, instrumentsById, anchorISO, onC
               <div className="pack-section-body">
                 {section.items.map((chart) => (
                   <PackItem key={chart.id} chart={chart} instrumentsById={instrumentsById}
-                    anchorISO={anchorISO} onChanged={onChanged} eager={eager} drag={drag} />
+                    anchorISO={anchorISO} onChanged={onChanged} eager={eager} drag={drag} editorOwner={editorOwner} />
                 ))}
               </div>
             )}
