@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react'
 import {
-  ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
+  ResponsiveContainer, ComposedChart, LineChart, Line, Bar, XAxis, YAxis, CartesianGrid, Tooltip,
 } from 'recharts'
 import {
   buildValueSeries, buildSpreadSeries, buildIndexedSeries, buildNitrogenSpread,
   buildRatioSeries, buildCorrelation, buildSpongePremium, buildCornCompare, buildSeasonal,
-  buildCropProgress,
+  buildCropProgress, buildIqfRatio,
 } from '../lib/series'
 import { fmtNum } from '../lib/format'
 
@@ -40,7 +40,7 @@ function keysFor(series, instrumentsById) {
 }
 
 export default function SeriesChart({ def, range, anchorISO, instrumentsById, height = 280, reloadKey = 0 }) {
-  const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {}, xKey: 'date', ticks: null, tickLabels: null })
+  const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {}, xKey: 'date', ticks: null, tickLabels: null, dual: null })
 
   useEffect(() => {
     let alive = true
@@ -52,6 +52,12 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           const d = def.series.find((s) => s.role === 'deliveries')
           const a = def.series.find((s) => s.role === 'adjustments')
           res = await buildCropProgress(d?.instrument_id, a?.instrument_id)
+        } else if (def.chart_type === 'iqf_ratio' || def.chart_type === 'iqf_ratio_lag') {
+          const sh = def.series.find((s) => s.role === 'share')
+          const iq = def.series.find((s) => s.role === 'iqf')
+          const fe = def.series.find((s) => s.role === 'feed')
+          const lag = def.chart_type === 'iqf_ratio_lag' ? 6 : 0
+          res = await buildIqfRatio(sh?.instrument_id, iq?.instrument_id, fe?.instrument_id, lag)
         } else if (def.chart_type === 'seasonal') {
           res = await buildSeasonal(def.series[0].instrument_id)
         } else if (def.chart_type === 'nitrogen_spread') {
@@ -136,7 +142,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
             if (res.data[i][k] != null) { last[k] = res.data[i][k]; break }
           }
         }
-        setState({ loading: false, data: res.data, keys: res.keys, error: null, last, xKey: res.xKey || 'date', ticks: res.ticks || null, tickLabels: res.tickLabels || null })
+        setState({ loading: false, data: res.data, keys: res.keys, error: null, last, xKey: res.xKey || 'date', ticks: res.ticks || null, tickLabels: res.tickLabels || null, dual: res.dual || null })
       } catch (e) {
         if (alive) setState({ loading: false, data: [], keys: [], error: e.message || String(e), last: {} })
       }
@@ -147,6 +153,45 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
   if (state.error) return <div className="chart-msg err">Chart error: {state.error}</div>
   if (state.loading) return <div className="chart-msg" style={{ height }}>Loading chart…</div>
   if (!state.data.length) return <div className="chart-msg" style={{ height }}>No data in this range.</div>
+
+  // Dual-axis chart (e.g. share price line + ratio bars on a second axis).
+  if (state.dual) {
+    const { left, right } = state.dual
+    return (
+      <div>
+        <div style={{ width: '100%', height }}>
+          <ResponsiveContainer>
+            <ComposedChart data={state.data} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
+              <CartesianGrid stroke="#2a3550" strokeDasharray="3 3" />
+              <XAxis dataKey="date" tickFormatter={axisDate}
+                tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={60} stroke="#2a3550" />
+              <YAxis yAxisId="L" tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
+                domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={64} />
+              <YAxis yAxisId="R" orientation="right" tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
+                domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={52} />
+              <Tooltip contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: '#e7ecf5' }} labelFormatter={axisDate} formatter={(v) => fmtNum(v)} />
+              {right.map((k, i) => (
+                <Bar key={k} yAxisId="R" dataKey={k} fill="#e0a13a" fillOpacity={0.85} isAnimationActive={false} />
+              ))}
+              {left.map((k, i) => (
+                <Line key={k} yAxisId="L" type="monotone" dataKey={k} stroke="#6c7a99"
+                  dot={false} strokeWidth={1.8} connectNulls isAnimationActive={false} />
+              ))}
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="chart-legend">
+          {state.keys.map((k, i) => (
+            <span className="leg" key={k}>
+              <i style={{ background: left.includes(k) ? '#6c7a99' : '#e0a13a' }} />
+              {k}: <strong>{fmtNum(state.last[k])}</strong>
+            </span>
+          ))}
+        </div>
+      </div>
+    )
+  }
 
   // On a seasonal overlay, highlight the current (latest) crop year: bright,
   // thick, and drawn on top of the faded historical years.

@@ -194,46 +194,72 @@ export async function buildSpongePremium(na, eu, spot, anchorISO, range, label, 
   return { data: downsample(out), keys: [label] }
 }
 
-// Seasonal overlay: one line per crop year, x-axis = months of the season
-// (default starting in May). The stored series holds each period's incremental
-// delivery ("the original number"); we cumulate it within each season to draw
-// the running progress total. Only the most recent `maxSeasons` years are shown
-// (the pack shows the last 11), so the chart stays readable and auto-advances.
-export async function buildSeasonal(instrumentId, startMonth = 5, maxSeasons = 11) {
+// Seasonal overlay: one line per year, x-axis = the 12 months (default calendar
+// year, Jan start), plotting each month's value (NOT cumulative). Used for the
+// chicken "run rate" chart. Only the most recent `maxSeasons` years are shown.
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+export async function buildSeasonal(instrumentId, startMonth = 1, maxSeasons = 8) {
   const obs = await fetchObservations([instrumentId], null)
   const pts = obs.get(instrumentId) || []
-  const MONTHS = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec', 'Jan', 'Feb', 'Mar', 'Apr']
+  const MONTHS = Array.from({ length: 12 }, (_, i) => MONTH_NAMES[(startMonth - 1 + i) % 12])
   const bySeason = {}
   for (const p of pts) {
     const [y, m] = p.date.split('-').map(Number)
     const season = m >= startMonth ? y : y - 1
     const idx = (m - startMonth + 12) % 12
     if (!bySeason[season]) bySeason[season] = {}
-    // Sum deliveries landing in the same season-month before cumulating.
-    bySeason[season][idx] = (bySeason[season][idx] ?? 0) + p.value
+    bySeason[season][idx] = p.value
   }
   let seasons = Object.keys(bySeason).sort()
   if (seasons.length > maxSeasons) seasons = seasons.slice(seasons.length - maxSeasons)
-
-  // Running (cumulative) total across the season's months.
-  const cum = {}
-  for (const s of seasons) {
-    let running = 0
-    let started = false
-    cum[s] = MONTHS.map((_, idx) => {
-      const v = bySeason[s][idx]
-      if (v == null) return started ? running : null
-      running += v
-      started = true
-      return running
-    })
-  }
   const data = MONTHS.map((mon, idx) => {
     const row = { month: mon }
-    for (const s of seasons) row[s] = cum[s][idx]
+    for (const s of seasons) row[s] = bySeason[s][idx] ?? null
     return row
   })
   return { data, keys: seasons, xKey: 'month' }
+}
+
+// Shift a 'YYYY-MM' month key back by n months.
+function shiftMonth(key, n) {
+  let [y, m] = key.split('-').map(Number)
+  m -= n
+  while (m <= 0) { m += 12; y -= 1 }
+  return `${y}-${String(m).padStart(2, '0')}`
+}
+
+// Reduce daily points to one value per calendar month (the month's last value).
+function monthlyLast(pts) {
+  const m = new Map()
+  for (const p of pts) m.set(p.date.slice(0, 7), p.value)
+  return m
+}
+
+// IQF-to-feed valuation chart: a share price (left axis, line) against the
+// IQF / Proxy-Feed ratio (right axis, bars), monthly. `lagMonths` lags the feed
+// (e.g. 6-month lagged feed). Any missing input just leaves that month blank.
+export async function buildIqfRatio(shareId, iqfId, feedId, lagMonths = 0) {
+  const ids = [shareId, iqfId, feedId].filter((x) => x != null)
+  const obs = await fetchObservations(ids, null)
+  const share = monthlyLast(obs.get(shareId) || [])
+  const iqf = monthlyLast(obs.get(iqfId) || [])
+  const feed = monthlyLast(obs.get(feedId) || [])
+  const months = Array.from(new Set([...share.keys(), ...iqf.keys()])).sort()
+  const SHARE = 'ARL Share Price'
+  const RATIO = lagMonths ? `IQF / ${lagMonths}m-lagged Proxy Feed` : 'IQF / Proxy Feed'
+  const data = months.map((k) => {
+    const f = feed.get(shiftMonth(k, lagMonths))
+    const iv = iqf.get(k)
+    return {
+      date: `${k}-01`,
+      [SHARE]: share.get(k) ?? null,
+      [RATIO]: (iv != null && f) ? iv / f : null,
+    }
+  })
+  return {
+    data, keys: [SHARE, RATIO], xKey: 'date',
+    dual: { left: [SHARE], right: [RATIO], rightBar: true },
+  }
 }
 
 // Weekly maize crop progress. Two manual series hold the raw SAGIS inputs

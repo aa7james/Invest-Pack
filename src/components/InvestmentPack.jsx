@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import SeriesChart from './SeriesChart'
 import ManualDataEntry from './ManualDataEntry'
 import CropDataEditor from './CropDataEditor'
+import ManualMultiEditor from './ManualMultiEditor'
 import ImagePanel from './ImagePanel'
 import StackedBarPanel from './StackedBarPanel'
 import Lazy from './Lazy'
@@ -19,11 +20,13 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag })
   const [note, setNote] = useState(chart.annotation || '')
   const [reloadKey, setReloadKey] = useState(0)
   const [cropOpen, setCropOpen] = useState(false)
+  const [multiOpen, setMultiOpen] = useState(false)
   const ref = useRef(null)
 
-  const manualInstrument = (chart.series || [])
+  const manualSeries = (chart.series || [])
     .map((s) => instrumentsById.get(s.instrument_id))
-    .find((inst) => inst && inst.source === 'manual')
+    .filter((inst) => inst && inst.source === 'manual')
+  const manualInstrument = manualSeries[0]
 
   // Weekly crop-progress charts have two manual inputs (deliveries + adjustments).
   const isCrop = chart.chart_type === 'crop_progress'
@@ -89,6 +92,23 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag })
                   deliveriesInst={deliveriesInst}
                   adjustmentsInst={adjustmentsInst}
                   onClose={() => setCropOpen(false)}
+                  onSaved={() => setReloadKey((k) => k + 1)}
+                  onChanged={onChanged}
+                />
+              )}
+            </div>
+          ) : manualSeries.length > 1 ? (
+            <div className="manual-entry no-print">
+              <div className="manual-row">
+                <span className="manual-label">Manual series · add data from the source</span>
+                <button className="btn small" onClick={() => setMultiOpen(true)}>✎ Edit data</button>
+              </div>
+              {multiOpen && (
+                <ManualMultiEditor
+                  title={chart.title}
+                  chart={chart}
+                  series={manualSeries.map((inst) => ({ id: inst.id, label: inst.name.replace(/^SA |^Chicken /, '') }))}
+                  onClose={() => setMultiOpen(false)}
                   onSaved={() => setReloadKey((k) => k + 1)}
                   onChanged={onChanged}
                 />
