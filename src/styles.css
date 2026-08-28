@@ -156,6 +156,12 @@ a { color: var(--accent); }
   border-bottom: 1px solid var(--border);
   margin-bottom: 20px;
   flex-wrap: wrap;
+  /* Stay pinned to the top while scrolling (freeze-panes) */
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--bg);
+  padding-top: 10px;
 }
 .tab {
   background: transparent;
@@ -357,6 +363,14 @@ a { color: var(--accent); }
   width: 100%; max-width: 560px; max-height: 85vh; display: flex; flex-direction: column;
 }
 .modal-panel.wide { max-width: 760px; }
+/* Full-screen expanded chart */
+.chart-fs {
+  background: var(--panel); border: 1px solid var(--border); border-radius: 12px;
+  width: 96vw; height: 92vh; display: flex; flex-direction: column; padding: 4px 8px 8px;
+}
+.chart-fs .modal-head { border-bottom: 1px solid var(--border); }
+.chart-fs .card-actions { display: flex; align-items: center; gap: 10px; }
+.chart-fs-body { flex: 1; min-height: 0; padding: 10px 6px 0; }
 /* Multi-series editor with many columns: readable fixed widths, horizontal
    scroll, and a pinned Date column. */
 .modal-panel.wide.xwide { max-width: min(1160px, 96vw); }
