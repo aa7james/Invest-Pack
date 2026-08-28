@@ -1,10 +1,17 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import TimeRange from './TimeRange'
 import SeriesChart from './SeriesChart'
 import ImagePanel from './ImagePanel'
 import StackedBarPanel from './StackedBarPanel'
 import Lazy from './Lazy'
 import { updateChart, deleteChart } from '../lib/charts'
+
+// Same section order as the Investment Pack.
+const CAT_ORDER = ['Chemicals', 'Energy', 'Metals', 'Soft Commodities', 'Chicken', 'Gaming', 'Manheim']
+function catRank(cat) {
+  const i = CAT_ORDER.indexOf(cat)
+  return i === -1 ? CAT_ORDER.length : i
+}
 
 function ChartCard({ chart, instrumentsById, anchorISO, onChanged }) {
   const [range, setRange] = useState(chart.time_range || '1Y')
@@ -78,15 +85,59 @@ function ChartCard({ chart, instrumentsById, anchorISO, onChanged }) {
 }
 
 export default function MyCharts({ charts, instrumentsById, anchorISO, onChanged }) {
+  const catOf = (c) => {
+    if (c.category) return c.category
+    const s = (c.series || [])[0]
+    const inst = s && instrumentsById.get(s.instrument_id)
+    return (inst && inst.category) || 'Other'
+  }
+
+  const sections = useMemo(() => {
+    const map = new Map()
+    for (const c of charts) {
+      const cat = catOf(c)
+      if (!map.has(cat)) map.set(cat, [])
+      map.get(cat).push(c)
+    }
+    return [...map.entries()]
+      .map(([cat, items]) => ({ cat, items: items.sort((a, b) => (a.pack_order - b.pack_order) || (a.id - b.id)) }))
+      .sort((a, b) => catRank(a.cat) - catRank(b.cat) || a.cat.localeCompare(b.cat))
+  }, [charts]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const [collapsed, setCollapsed] = useState({})
+  const isCollapsed = (cat) => collapsed[cat] !== false // default collapsed
+  const toggle = (cat) => setCollapsed((c) => ({ ...c, [cat]: !isCollapsed(cat) }))
+
   if (!charts.length) {
     return <div className="center">No saved charts yet. Build one in the Chart Builder tab.</div>
   }
+
   return (
-    <div className="chart-grid">
-      {charts.map((c) => (
-        <ChartCard key={c.id} chart={c} instrumentsById={instrumentsById}
-          anchorISO={anchorISO} onChanged={onChanged} />
-      ))}
+    <div>
+      <div className="card-actions" style={{ justifyContent: 'flex-end', marginBottom: 12 }}>
+        <button className="btn ghost small" onClick={() => setCollapsed(Object.fromEntries(sections.map((s) => [s.cat, false])))}>Expand all</button>
+        <button className="btn ghost small" onClick={() => setCollapsed(Object.fromEntries(sections.map((s) => [s.cat, true])))}>Collapse all</button>
+      </div>
+      {sections.map((section) => {
+        const open = !isCollapsed(section.cat)
+        return (
+          <div className="pack-section" key={section.cat}>
+            <button className="pack-section-header" onClick={() => toggle(section.cat)}>
+              <span className={`chev ${open ? 'open' : ''}`}>▶</span>
+              {section.cat}
+              <span className="sec-count">{section.items.length}</span>
+            </button>
+            {open && (
+              <div className="chart-grid">
+                {section.items.map((c) => (
+                  <ChartCard key={c.id} chart={c} instrumentsById={instrumentsById}
+                    anchorISO={anchorISO} onChanged={onChanged} />
+                ))}
+              </div>
+            )}
+          </div>
+        )
+      })}
     </div>
   )
 }
