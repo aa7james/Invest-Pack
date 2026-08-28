@@ -90,7 +90,7 @@ export default function ManualMultiEditor({ title, series, chart, onClose, onSav
 
   return (
     <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-panel wide" onClick={(e) => e.stopPropagation()}>
+      <div className={`modal-panel wide${series.length > 3 ? ' xwide' : ''}`} onClick={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h3>Edit data — {title}</h3>
           <button className="btn small ghost" onClick={onClose}>Close</button>
@@ -116,7 +116,7 @@ export default function ManualMultiEditor({ title, series, chart, onClose, onSav
               <button className="btn small" onClick={addRow}>+ Add row</button>
               <span className="muted small">{rows.length} rows</span>
             </div>
-            <div className="modal-table">
+            <div className="modal-table multi">
               <table>
                 <thead>
                   <tr>

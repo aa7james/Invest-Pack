@@ -357,6 +357,19 @@ a { color: var(--accent); }
   width: 100%; max-width: 560px; max-height: 85vh; display: flex; flex-direction: column;
 }
 .modal-panel.wide { max-width: 760px; }
+/* Multi-series editor with many columns: readable fixed widths, horizontal
+   scroll, and a pinned Date column. */
+.modal-panel.wide.xwide { max-width: min(1160px, 96vw); }
+.modal-table.multi { overflow-x: auto; }
+.modal-table.multi table { border-collapse: separate; border-spacing: 0; }
+.modal-table.multi th, .modal-table.multi td { white-space: nowrap; padding: 3px 5px; }
+.modal-table.multi thead th { vertical-align: bottom; font-size: 10px; line-height: 1.15; max-width: 84px; white-space: normal; }
+.modal-table.multi td .input, .modal-table.multi th { min-width: 74px; }
+.modal-table.multi td .input[type="number"] { width: 74px; }
+.modal-table.multi td:first-child, .modal-table.multi thead th:first-child {
+  position: sticky; left: 0; z-index: 2; background: var(--panel);
+}
+.modal-table.multi td:first-child .input { min-width: 140px; }
 .editor-warning { margin: 10px 16px 0; padding: 8px 12px; border: 1px solid #e5674f; border-radius: 8px; background: rgba(229, 103, 79, 0.12); color: #ff6b52; font-weight: 700; font-size: 13px; }
 .editor-link { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin: 10px 16px 0; }
 .modal-table .calc { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; padding-right: 12px; }
