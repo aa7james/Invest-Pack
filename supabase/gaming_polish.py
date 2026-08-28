@@ -73,7 +73,7 @@ def main():
     print('  seeded National modes')
 
     # National Total GGR -> stacked bar by mode
-    wire('National Total GGR', 'stacked_bar', [
+    wire('National Total GGR', 'ggr_stack', [
         ('series', ids['National Casino']), ('series', ids['National Bingo']),
         ('series', ids['National LPM']), ('series', ids['National Betting'])])
 

@@ -43,7 +43,7 @@ function keysFor(series, instrumentsById) {
 }
 
 export default function SeriesChart({ def, range, anchorISO, instrumentsById, height = 280, reloadKey = 0 }) {
-  const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {}, xKey: 'date', ticks: null, tickLabels: null, dual: null, stacked: false, bar: false, stackedBar: false })
+  const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {}, xKey: 'date', ticks: null, tickLabels: null, dual: null, stacked: false, bar: false, stackedBar: false, domainMax: null })
 
   useEffect(() => {
     let alive = true
@@ -79,7 +79,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           const withKeys = keysFor(def.series, instrumentsById)
           res = await buildValueSeries(withKeys.map((s) => ({ key: s.key, instrumentId: s.instrument_id })), anchorISO, 'ALL')
           res = { ...res, bar: true }
-        } else if (def.chart_type === 'stacked_bar') {
+        } else if (def.chart_type === 'ggr_stack') {
           const withKeys = keysFor(def.series, instrumentsById)
           res = await buildValueSeries(withKeys.map((s) => ({ key: s.key, instrumentId: s.instrument_id })), anchorISO, 'ALL')
           res = { ...res, stackedBar: true }
@@ -189,7 +189,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
             if (res.data[i][k] != null) { last[k] = res.data[i][k]; break }
           }
         }
-        setState({ loading: false, data: res.data, keys: res.keys, error: null, last, xKey: res.xKey || 'date', ticks: res.ticks || null, tickLabels: res.tickLabels || null, dual: res.dual || null, stacked: res.stacked || false, bar: res.bar || false, stackedBar: res.stackedBar || false })
+        setState({ loading: false, data: res.data, keys: res.keys, error: null, last, xKey: res.xKey || 'date', ticks: res.ticks || null, tickLabels: res.tickLabels || null, dual: res.dual || null, stacked: res.stacked || false, bar: res.bar || false, stackedBar: res.stackedBar || false, domainMax: res.domainMax || null })
       } catch (e) {
         if (alive) setState({ loading: false, data: [], keys: [], error: e.message || String(e), last: {} })
       }
@@ -286,7 +286,8 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
               <XAxis dataKey="date" tickFormatter={axisDate}
                 tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={20} stroke="#2a3550" />
               <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
-                domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={94} />
+                domain={state.domainMax ? [0, state.domainMax] : ['auto', 'auto']} allowDataOverflow={!!state.domainMax}
+                tickFormatter={(v) => fmtNum(v)} width={94} />
               <Tooltip contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
                 labelStyle={{ color: '#e7ecf5' }} labelFormatter={axisDate} formatter={(v) => fmtNum(v)} />
               {state.keys.map((k, i) => (

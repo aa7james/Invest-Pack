@@ -245,7 +245,8 @@ export async function buildPerVisitor(ggrId, visitorsId) {
     const v = vis.get(p.date.slice(0, 7))
     if (v) data.push({ date: p.date, [K]: (p.value * 1000) / v })
   }
-  return { data: downsample(data), keys: [K], xKey: 'date', bar: true }
+  // Cap the axis so the COVID-era outlier goes off-chart (like the pack).
+  return { data: downsample(data), keys: [K], xKey: 'date', bar: true, domainMax: 30000 }
 }
 
 // Macau visitors as a stacked bar: Chinese visitors + the rest, so the total
@@ -285,7 +286,8 @@ export async function buildMacauYtd(ggrId) {
     const prev = ytd.get(shiftMonth(key, 12))
     return { date: p.date, [REV]: p.value, [YTD]: prev ? (ytd.get(key) / prev - 1) * 100 : null }
   })
-  return { data, keys: [YTD, REV], xKey: 'date', dual: { left: [YTD], right: [REV], rightBar: true } }
+  // Growth % = bars (left), Monthly Revenue = line (right), matching the pack.
+  return { data, keys: [YTD, REV], xKey: 'date', dual: { left: [YTD], right: [REV], leftBar: true } }
 }
 
 // OEM market share: each group's brand-unit sum divided by the total, monthly.
