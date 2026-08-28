@@ -8,6 +8,7 @@ import {
   buildRatioSeries, buildCorrelation, buildSpongePremium, buildCornCompare, buildSeasonal,
   buildCropProgress, buildIqfRatio, buildProxyFeed, buildRolling12,
   buildOemShare, buildHireRolling, buildDailyAvg, buildPerVisitor, buildMacauYtd,
+  buildVisitorsStack,
 } from '../lib/series'
 import { fmtNum } from '../lib/format'
 
@@ -42,7 +43,7 @@ function keysFor(series, instrumentsById) {
 }
 
 export default function SeriesChart({ def, range, anchorISO, instrumentsById, height = 280, reloadKey = 0 }) {
-  const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {}, xKey: 'date', ticks: null, tickLabels: null, dual: null, stacked: false, bar: false })
+  const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {}, xKey: 'date', ticks: null, tickLabels: null, dual: null, stacked: false, bar: false, stackedBar: false })
 
   useEffect(() => {
     let alive = true
@@ -78,6 +79,14 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           const withKeys = keysFor(def.series, instrumentsById)
           res = await buildValueSeries(withKeys.map((s) => ({ key: s.key, instrumentId: s.instrument_id })), anchorISO, 'ALL')
           res = { ...res, bar: true }
+        } else if (def.chart_type === 'stacked_bar') {
+          const withKeys = keysFor(def.series, instrumentsById)
+          res = await buildValueSeries(withKeys.map((s) => ({ key: s.key, instrumentId: s.instrument_id })), anchorISO, 'ALL')
+          res = { ...res, stackedBar: true }
+        } else if (def.chart_type === 'visitors_stack') {
+          const ch = def.series.find((s) => s.role === 'chinese')
+          const tot = def.series.find((s) => s.role === 'total')
+          res = await buildVisitorsStack(ch?.instrument_id, tot?.instrument_id)
         } else if (def.chart_type === 'crop_progress') {
           const d = def.series.find((s) => s.role === 'deliveries')
           const a = def.series.find((s) => s.role === 'adjustments')
@@ -180,7 +189,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
             if (res.data[i][k] != null) { last[k] = res.data[i][k]; break }
           }
         }
-        setState({ loading: false, data: res.data, keys: res.keys, error: null, last, xKey: res.xKey || 'date', ticks: res.ticks || null, tickLabels: res.tickLabels || null, dual: res.dual || null, stacked: res.stacked || false, bar: res.bar || false })
+        setState({ loading: false, data: res.data, keys: res.keys, error: null, last, xKey: res.xKey || 'date', ticks: res.ticks || null, tickLabels: res.tickLabels || null, dual: res.dual || null, stacked: res.stacked || false, bar: res.bar || false, stackedBar: res.stackedBar || false })
       } catch (e) {
         if (alive) setState({ loading: false, data: [], keys: [], error: e.message || String(e), last: {} })
       }
@@ -282,6 +291,38 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
                 labelStyle={{ color: '#e7ecf5' }} labelFormatter={axisDate} formatter={(v) => fmtNum(v)} />
               {state.keys.map((k, i) => (
                 <Bar key={k} dataKey={k} fill={CHART_COLORS[i % CHART_COLORS.length]} isAnimationActive={false} />
+              ))}
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="chart-legend">
+          {state.keys.map((k, i) => (
+            <span className="leg" key={k}>
+              <i style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+              {k}: <strong>{fmtNum(state.last[k])}</strong>
+            </span>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Stacked bar chart (e.g. National GGR by mode, Macau visitors).
+  if (state.stackedBar) {
+    return (
+      <div>
+        <div style={{ width: '100%', height }}>
+          <ResponsiveContainer>
+            <ComposedChart data={state.data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+              <CartesianGrid stroke="#2a3550" strokeDasharray="3 3" />
+              <XAxis dataKey="date" tickFormatter={axisDate}
+                tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={20} stroke="#2a3550" />
+              <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
+                domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={94} />
+              <Tooltip contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: '#e7ecf5' }} labelFormatter={axisDate} formatter={(v) => fmtNum(v)} />
+              {state.keys.map((k, i) => (
+                <Bar key={k} dataKey={k} stackId="1" fill={CHART_COLORS[i % CHART_COLORS.length]} isAnimationActive={false} />
               ))}
             </ComposedChart>
           </ResponsiveContainer>

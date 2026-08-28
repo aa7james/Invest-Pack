@@ -231,7 +231,7 @@ export async function buildDailyAvg(ggrId, anchorISO, range) {
     const days = new Date(Date.UTC(y, m, 0)).getUTCDate()
     return { date: p.date, [K]: p.value / days }
   })
-  return { data: downsample(data), keys: [K], xKey: 'date' }
+  return { data: downsample(data), keys: [K], xKey: 'date', bar: true }
 }
 
 // Macau GGR per visitor = monthly GGR (MOP m) / visitors (thousands) * 1000.
@@ -245,7 +245,24 @@ export async function buildPerVisitor(ggrId, visitorsId) {
     const v = vis.get(p.date.slice(0, 7))
     if (v) data.push({ date: p.date, [K]: (p.value * 1000) / v })
   }
-  return { data: downsample(data), keys: [K], xKey: 'date' }
+  return { data: downsample(data), keys: [K], xKey: 'date', bar: true }
+}
+
+// Macau visitors as a stacked bar: Chinese visitors + the rest, so the total
+// bar height is Total Visitors (matches the pack).
+export async function buildVisitorsStack(chineseId, totalId) {
+  const obs = await fetchObservations([chineseId, totalId].filter((x) => x != null), null)
+  const chinese = monthlyLast(obs.get(chineseId) || [])
+  const total = monthlyLast(obs.get(totalId) || [])
+  const CH = 'Chinese Visitors'
+  const OTHER = 'Other Visitors'
+  const months = [...total.keys()].sort()
+  const data = months.map((m) => {
+    const c = chinese.get(m) ?? 0
+    const t = total.get(m) ?? 0
+    return { date: `${m}-01`, [CH]: c, [OTHER]: Math.max(0, t - c) }
+  })
+  return { data: downsample(data), keys: [CH, OTHER], xKey: 'date', stackedBar: true }
 }
 
 // Macau year-to-date growth % (line, left axis) vs monthly revenue (bars, right
