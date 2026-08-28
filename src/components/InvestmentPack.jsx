@@ -145,7 +145,7 @@ export default function InvestmentPack({ charts, instrumentsById, anchorISO, onC
   // Each manual series is editable in exactly one place: the first plain value
   // chart (in pack order) that uses it. Derived charts (seasonal / ratios /
   // computed feed) never show an editor — they just display.
-  const INPUT_TYPES = new Set(['value', 'rolling12', 'stacked_area', 'oem_share', 'hire_rolling'])
+  const INPUT_TYPES = new Set(['value', 'bar', 'rolling12', 'stacked_area', 'oem_share', 'hire_rolling'])
   const editorOwner = useMemo(() => {
     const owner = new Map()
     for (const c of packCharts) {

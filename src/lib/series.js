@@ -248,18 +248,27 @@ export async function buildPerVisitor(ggrId, visitorsId) {
   return { data: downsample(data), keys: [K], xKey: 'date' }
 }
 
-// Macau monthly revenue (bars, left) vs its year-on-year growth % (line, right).
+// Macau year-to-date growth % (line, left axis) vs monthly revenue (bars, right
+// axis). YtD growth = this year's Jan..month total vs the same period last year
+// — smoother than raw monthly YoY, matching the pack.
 export async function buildMacauYtd(ggrId) {
   const obs = await fetchObservations([ggrId], null)
   const pts = (obs.get(ggrId) || []).slice().sort((a, b) => (a.date < b.date ? -1 : 1))
   const REV = 'Monthly Revenue'
-  const YOY = 'YoY Growth %'
-  const byMonth = new Map(pts.map((p) => [p.date.slice(0, 7), p.value]))
+  const YTD = 'YtD Growth %'
+  const ytd = new Map()
+  const runByYear = {}
+  for (const p of pts) {
+    const [y, m] = p.date.split('-').map(Number)
+    runByYear[y] = (runByYear[y] || 0) + p.value
+    ytd.set(`${y}-${String(m).padStart(2, '0')}`, runByYear[y])
+  }
   const data = pts.map((p) => {
-    const prev = byMonth.get(shiftMonth(p.date.slice(0, 7), 12))
-    return { date: p.date, [REV]: p.value, [YOY]: prev ? (p.value / prev - 1) * 100 : null }
+    const key = p.date.slice(0, 7)
+    const prev = ytd.get(shiftMonth(key, 12))
+    return { date: p.date, [REV]: p.value, [YTD]: prev ? (ytd.get(key) / prev - 1) * 100 : null }
   })
-  return { data, keys: [REV, YOY], xKey: 'date', dual: { left: [REV], right: [YOY], leftBar: true } }
+  return { data, keys: [YTD, REV], xKey: 'date', dual: { left: [YTD], right: [REV], rightBar: true } }
 }
 
 // OEM market share: each group's brand-unit sum divided by the total, monthly.

@@ -42,7 +42,7 @@ function keysFor(series, instrumentsById) {
 }
 
 export default function SeriesChart({ def, range, anchorISO, instrumentsById, height = 280, reloadKey = 0 }) {
-  const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {}, xKey: 'date', ticks: null, tickLabels: null, dual: null, stacked: false })
+  const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {}, xKey: 'date', ticks: null, tickLabels: null, dual: null, stacked: false, bar: false })
 
   useEffect(() => {
     let alive = true
@@ -74,6 +74,10 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           const withKeys = keysFor(def.series, instrumentsById)
           res = await buildValueSeries(withKeys.map((s) => ({ key: s.key, instrumentId: s.instrument_id })), anchorISO, 'ALL')
           res = { ...res, stacked: true }
+        } else if (def.chart_type === 'bar') {
+          const withKeys = keysFor(def.series, instrumentsById)
+          res = await buildValueSeries(withKeys.map((s) => ({ key: s.key, instrumentId: s.instrument_id })), anchorISO, 'ALL')
+          res = { ...res, bar: true }
         } else if (def.chart_type === 'crop_progress') {
           const d = def.series.find((s) => s.role === 'deliveries')
           const a = def.series.find((s) => s.role === 'adjustments')
@@ -176,7 +180,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
             if (res.data[i][k] != null) { last[k] = res.data[i][k]; break }
           }
         }
-        setState({ loading: false, data: res.data, keys: res.keys, error: null, last, xKey: res.xKey || 'date', ticks: res.ticks || null, tickLabels: res.tickLabels || null, dual: res.dual || null, stacked: res.stacked || false })
+        setState({ loading: false, data: res.data, keys: res.keys, error: null, last, xKey: res.xKey || 'date', ticks: res.ticks || null, tickLabels: res.tickLabels || null, dual: res.dual || null, stacked: res.stacked || false, bar: res.bar || false })
       } catch (e) {
         if (alive) setState({ loading: false, data: [], keys: [], error: e.message || String(e), last: {} })
       }
@@ -200,9 +204,9 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
               <XAxis dataKey="date" tickFormatter={axisDate}
                 tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={60} stroke="#2a3550" />
               <YAxis yAxisId="L" tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
-                domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={64} />
+                domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={82} />
               <YAxis yAxisId="R" orientation="right" tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
-                domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={52} />
+                domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={66} />
               <Tooltip contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
                 labelStyle={{ color: '#e7ecf5' }} labelFormatter={axisDate} formatter={(v) => fmtNum(v)} />
               {left.map((k) => (leftBar
@@ -239,7 +243,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
               <XAxis dataKey="date" tickFormatter={axisDate}
                 tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={60} stroke="#2a3550" />
               <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
-                domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={70} />
+                domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={94} />
               <Tooltip contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
                 labelStyle={{ color: '#e7ecf5' }} labelFormatter={axisDate} formatter={(v) => fmtNum(v)} />
               {state.keys.map((k, i) => (
@@ -248,6 +252,38 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
                   fillOpacity={0.55} isAnimationActive={false} />
               ))}
             </AreaChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="chart-legend">
+          {state.keys.map((k, i) => (
+            <span className="leg" key={k}>
+              <i style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
+              {k}: <strong>{fmtNum(state.last[k])}</strong>
+            </span>
+          ))}
+        </div>
+      </div>
+    )
+  }
+
+  // Bar chart (e.g. annual National Total GGR).
+  if (state.bar) {
+    return (
+      <div>
+        <div style={{ width: '100%', height }}>
+          <ResponsiveContainer>
+            <ComposedChart data={state.data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+              <CartesianGrid stroke="#2a3550" strokeDasharray="3 3" />
+              <XAxis dataKey="date" tickFormatter={axisDate}
+                tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={20} stroke="#2a3550" />
+              <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
+                domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={94} />
+              <Tooltip contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: '#e7ecf5' }} labelFormatter={axisDate} formatter={(v) => fmtNum(v)} />
+              {state.keys.map((k, i) => (
+                <Bar key={k} dataKey={k} fill={CHART_COLORS[i % CHART_COLORS.length]} isAnimationActive={false} />
+              ))}
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
         <div className="chart-legend">
@@ -284,7 +320,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
               ticks={state.xKey === 'week' && state.ticks ? state.ticks : undefined}
               tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={state.xKey === 'date' ? 60 : 0} stroke="#2a3550" />
             <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
-              domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={70} />
+              domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={94} />
             <Tooltip
               contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
               labelStyle={{ color: '#e7ecf5' }}
