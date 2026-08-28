@@ -7,7 +7,7 @@ import {
   buildValueSeries, buildSpreadSeries, buildIndexedSeries, buildNitrogenSpread,
   buildRatioSeries, buildCorrelation, buildSpongePremium, buildCornCompare, buildSeasonal,
   buildCropProgress, buildIqfRatio, buildProxyFeed, buildRolling12,
-  buildOemShare, buildHireRolling,
+  buildOemShare, buildHireRolling, buildDailyAvg, buildPerVisitor, buildMacauYtd,
 } from '../lib/series'
 import { fmtNum } from '../lib/format'
 
@@ -62,6 +62,14 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           const pct = def.series.find((s) => s.role === 'pct')
           const tot = def.series.find((s) => s.role === 'total')
           res = await buildHireRolling(pct?.instrument_id, tot?.instrument_id)
+        } else if (def.chart_type === 'macau_daily_avg') {
+          res = await buildDailyAvg(def.series[0].instrument_id, anchorISO, range)
+        } else if (def.chart_type === 'macau_per_visitor') {
+          const g = def.series.find((s) => s.role === 'ggr')
+          const v = def.series.find((s) => s.role === 'visitors')
+          res = await buildPerVisitor(g?.instrument_id, v?.instrument_id)
+        } else if (def.chart_type === 'macau_ytd') {
+          res = await buildMacauYtd(def.series[0].instrument_id)
         } else if (def.chart_type === 'stacked_area') {
           const withKeys = keysFor(def.series, instrumentsById)
           res = await buildValueSeries(withKeys.map((s) => ({ key: s.key, instrumentId: s.instrument_id })), anchorISO, 'ALL')
@@ -182,7 +190,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
 
   // Dual-axis chart (e.g. share price line + ratio bars on a second axis).
   if (state.dual) {
-    const { left, right } = state.dual
+    const { left, right, leftBar, rightBar } = state.dual
     return (
       <div>
         <div style={{ width: '100%', height }}>
@@ -197,20 +205,21 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
                 domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={52} />
               <Tooltip contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
                 labelStyle={{ color: '#e7ecf5' }} labelFormatter={axisDate} formatter={(v) => fmtNum(v)} />
-              {right.map((k, i) => (
-                <Bar key={k} yAxisId="R" dataKey={k} fill="#e0a13a" fillOpacity={0.85} isAnimationActive={false} />
+              {left.map((k) => (leftBar
+                ? <Bar key={k} yAxisId="L" dataKey={k} fill="#4f8cff" fillOpacity={0.8} isAnimationActive={false} />
+                : <Line key={k} yAxisId="L" type="monotone" dataKey={k} stroke="#6c7a99" dot={false} strokeWidth={1.8} connectNulls isAnimationActive={false} />
               ))}
-              {left.map((k, i) => (
-                <Line key={k} yAxisId="L" type="monotone" dataKey={k} stroke="#6c7a99"
-                  dot={false} strokeWidth={1.8} connectNulls isAnimationActive={false} />
+              {right.map((k) => (rightBar
+                ? <Bar key={k} yAxisId="R" dataKey={k} fill="#e0a13a" fillOpacity={0.85} isAnimationActive={false} />
+                : <Line key={k} yAxisId="R" type="monotone" dataKey={k} stroke="#e0a13a" dot={false} strokeWidth={1.8} connectNulls isAnimationActive={false} />
               ))}
             </ComposedChart>
           </ResponsiveContainer>
         </div>
         <div className="chart-legend">
-          {state.keys.map((k, i) => (
+          {state.keys.map((k) => (
             <span className="leg" key={k}>
-              <i style={{ background: left.includes(k) ? '#6c7a99' : '#e0a13a' }} />
+              <i style={{ background: left.includes(k) ? (leftBar ? '#4f8cff' : '#6c7a99') : '#e0a13a' }} />
               {k}: <strong>{fmtNum(state.last[k])}</strong>
             </span>
           ))}

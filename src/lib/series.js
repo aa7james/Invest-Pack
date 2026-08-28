@@ -220,6 +220,48 @@ export async function buildSeasonal(instrumentId, startMonth = 1, maxSeasons = 8
   return { data, keys: seasons, xKey: 'month' }
 }
 
+// Macau daily-average GGR = monthly GGR / calendar days in that month.
+export async function buildDailyAvg(ggrId, anchorISO, range) {
+  const from = rangeStart(anchorISO, range)
+  const obs = await fetchObservations([ggrId], from)
+  const pts = obs.get(ggrId) || []
+  const K = 'Daily Average GGR'
+  const data = pts.map((p) => {
+    const [y, m] = p.date.split('-').map(Number)
+    const days = new Date(Date.UTC(y, m, 0)).getUTCDate()
+    return { date: p.date, [K]: p.value / days }
+  })
+  return { data: downsample(data), keys: [K], xKey: 'date' }
+}
+
+// Macau GGR per visitor = monthly GGR (MOP m) / visitors (thousands) * 1000.
+export async function buildPerVisitor(ggrId, visitorsId) {
+  const obs = await fetchObservations([ggrId, visitorsId].filter((x) => x != null), null)
+  const ggr = obs.get(ggrId) || []
+  const vis = monthlyLast(obs.get(visitorsId) || [])
+  const K = 'GGR per Visitor'
+  const data = []
+  for (const p of ggr) {
+    const v = vis.get(p.date.slice(0, 7))
+    if (v) data.push({ date: p.date, [K]: (p.value * 1000) / v })
+  }
+  return { data: downsample(data), keys: [K], xKey: 'date' }
+}
+
+// Macau monthly revenue (bars, left) vs its year-on-year growth % (line, right).
+export async function buildMacauYtd(ggrId) {
+  const obs = await fetchObservations([ggrId], null)
+  const pts = (obs.get(ggrId) || []).slice().sort((a, b) => (a.date < b.date ? -1 : 1))
+  const REV = 'Monthly Revenue'
+  const YOY = 'YoY Growth %'
+  const byMonth = new Map(pts.map((p) => [p.date.slice(0, 7), p.value]))
+  const data = pts.map((p) => {
+    const prev = byMonth.get(shiftMonth(p.date.slice(0, 7), 12))
+    return { date: p.date, [REV]: p.value, [YOY]: prev ? (p.value / prev - 1) * 100 : null }
+  })
+  return { data, keys: [REV, YOY], xKey: 'date', dual: { left: [REV], right: [YOY], leftBar: true } }
+}
+
 // OEM market share: each group's brand-unit sum divided by the total, monthly.
 // Brands map to groups exactly as the workbook does (BYD sits in China). Input
 // is the per-brand monthly units; the shares are computed here.
