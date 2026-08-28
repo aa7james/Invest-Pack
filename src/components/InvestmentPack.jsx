@@ -9,7 +9,7 @@ import Lazy from './Lazy'
 import { updateChart } from '../lib/charts'
 
 // Preferred section order; anything else falls to the end alphabetically.
-const CAT_ORDER = ['Chemicals', 'Energy', 'Metals', 'Soft Commodities', 'Chicken', 'Gaming', 'Manheim']
+const CAT_ORDER = ['Chemicals', 'Energy', 'Metals', 'Soft Commodities', 'Chicken', 'Manheim', 'Gaming']
 
 function catRank(cat) {
   const i = CAT_ORDER.indexOf(cat)
