@@ -17,7 +17,7 @@ from datetime import datetime, timezone
 
 from dotenv import load_dotenv
 from supabase import create_client
-from supabase.lib.client_options import ClientOptions
+
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 load_dotenv(os.path.join(HERE, ".env"))
@@ -33,7 +33,7 @@ log = logging.getLogger("watch_and_run")
 def main():
     if not SUPABASE_URL or not SUPABASE_KEY:
         log.error("SUPABASE_URL and SUPABASE_KEY must be set in .env"); sys.exit(1)
-    sb = create_client(SUPABASE_URL, SUPABASE_KEY, options=ClientOptions(schema="pack"))
+    sb = create_client(SUPABASE_URL, SUPABASE_KEY).schema("pack")
 
     running = (sb.table("data_update_requests").select("id").eq("status", "running").limit(1).execute()).data or []
     if running:

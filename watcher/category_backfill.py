@@ -25,7 +25,7 @@ except ImportError:
     raise
 
 from supabase import create_client
-from supabase.lib.client_options import ClientOptions
+
 
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
@@ -130,7 +130,7 @@ def main():
     args = ap.parse_args()
     if not SUPABASE_URL or not SUPABASE_KEY:
         log.error("SUPABASE_URL and SUPABASE_KEY must be set in .env"); sys.exit(1)
-    sb = create_client(SUPABASE_URL, SUPABASE_KEY, options=ClientOptions(schema="pack"))
+    sb = create_client(SUPABASE_URL, SUPABASE_KEY).schema("pack")
     from_date = date.fromisoformat(args.from_date)
     to_date = date.fromisoformat(args.to_date) if args.to_date else date.today()
     instruments = load_instruments(sb, args.category)

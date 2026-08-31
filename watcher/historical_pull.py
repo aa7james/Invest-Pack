@@ -1,19 +1,8 @@
 #!/usr/bin/env python3
-"""
-historical_pull.py (Invest-Pack) — same architecture as the Fixed Income pull,
-adapted to the isolated `pack` schema.
-
-  * Backfills any past gap days via HistoricalDataRequest, then (unless
-    --from/--to given) refreshes TODAY via a live ReferenceDataRequest snapshot.
-  * Always re-pulls the last 3 days (late/revised fixes). Skips weekends.
-  * Writes to pack.pack_data (instrument_id, obs_date, value) — one row per
-    instrument per date, so nothing can be clobbered.
-  * Currency: each instrument's `currency` (USD/ZAR/None) is applied as a
-    Bloomberg currency OVERRIDE (request.set("currency", ...)) — the same thing
-    "FX=ZAR" does in the Data Dump. No manual FX maths.
-
-Credentials via .env in this folder (SUPABASE_URL, SUPABASE_KEY=SECRET key).
-"""
+"""historical_pull.py (Invest-Pack) — Bloomberg pull into the pack schema.
+Backfills last 3 days + any gap through today (HistoricalDataRequest, DAILY),
+weekends dropped, currency override per instrument ("FX=ZAR" equivalent).
+Writes to pack.pack_data (instrument_id, obs_date, value)."""
 from __future__ import annotations
 
 import argparse
@@ -32,7 +21,6 @@ except ImportError:
     raise
 
 from supabase import create_client
-from supabase.lib.client_options import ClientOptions
 
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
@@ -45,7 +33,7 @@ log = logging.getLogger("historical_pull")
 
 
 def sb_client():
-    return create_client(SUPABASE_URL, SUPABASE_KEY, options=ClientOptions(schema="pack"))
+    return create_client(SUPABASE_URL, SUPABASE_KEY).schema("pack")
 
 
 def load_active_instruments(sb):
@@ -81,20 +69,13 @@ def start_session():
 
 
 def _groups(instruments):
-    """Group by (field, currency) so we can apply a currency override per group."""
     g = defaultdict(list)
     for i in instruments:
         g[(i["field"], i["currency"])].append(i)
     return g
 
 
-def _apply_currency(request, currency):
-    if currency:
-        request.set("currency", currency)
-
-
 def fetch_historical(session, service, instruments, from_date, to_date):
-    """Returns {(instrument_id, iso_date): value}."""
     results = {}
     for (field_name, ccy), group in _groups(instruments).items():
         ticker_to_id = {i["ticker"]: i["id"] for i in group}
@@ -107,7 +88,8 @@ def fetch_historical(session, service, instruments, from_date, to_date):
         request.set("startDate", from_date.strftime("%Y%m%d"))
         request.set("endDate", to_date.strftime("%Y%m%d"))
         request.set("periodicitySelection", "DAILY")
-        _apply_currency(request, ccy)
+        if ccy:
+            request.set("currency", ccy)
         session.sendRequest(request)
         waiting = True
         while waiting:
@@ -134,45 +116,6 @@ def fetch_historical(session, service, instruments, from_date, to_date):
             if event.eventType() in (blpapi.Event.RESPONSE, blpapi.Event.TIMEOUT):
                 waiting = False
     log.info("Historical returned %s datapoints.", len(results))
-    return results
-
-
-def fetch_live_snapshot(session, service, instruments, today_iso):
-    """Returns {(instrument_id, today_iso): value}."""
-    results = {}
-    for (field_name, ccy), group in _groups(instruments).items():
-        ticker_to_id = {i["ticker"]: i["id"] for i in group}
-        log.info("Live %s [%s] for %s ticker(s) ...", field_name, ccy or "native", len(group))
-        request = service.createRequest("ReferenceDataRequest")
-        for t in ticker_to_id:
-            request.getElement("securities").appendValue(t)
-        request.getElement("fields").appendValue(field_name)
-        _apply_currency(request, ccy)
-        session.sendRequest(request)
-        waiting = True
-        while waiting:
-            event = session.nextEvent(timeout=30000)
-            for msg in event:
-                if not msg.hasElement("securityData"):
-                    continue
-                arr = msg.getElement("securityData")
-                for i in range(arr.numValues()):
-                    sec = arr.getValue(i)
-                    ticker = sec.getElementAsString("security")
-                    iid = ticker_to_id.get(ticker)
-                    if iid is None or sec.hasElement("securityError"):
-                        if sec.hasElement("securityError"):
-                            log.warning("Bloomberg error for %s (live)", ticker)
-                        continue
-                    fd = sec.getElement("fieldData")
-                    if fd.hasElement(field_name):
-                        try:
-                            results[(iid, today_iso)] = fd.getElementAsFloat(field_name)
-                        except Exception as ex:
-                            log.debug("live parse error %s: %s", ticker, ex)
-            if event.eventType() in (blpapi.Event.RESPONSE, blpapi.Event.TIMEOUT):
-                waiting = False
-    log.info("Live snapshot returned %s value(s).", len(results))
     return results
 
 
@@ -204,7 +147,6 @@ def main():
 
     sb = sb_client()
     today = date.today()
-    explicit = args.from_date is not None or args.to_date is not None
     to_date = date.fromisoformat(args.to_date) if args.to_date else today
 
     if args.from_date:
@@ -221,23 +163,12 @@ def main():
     log.info("%s active Bloomberg instruments.", len(instruments))
 
     total = 0
-    backfill_to = min(to_date, today - timedelta(days=1))
     session, service = start_session()
     try:
-        if from_date <= backfill_to:
-            log.info("=== Backfill %s -> %s ===", from_date, backfill_to)
-            pts = fetch_historical(session, service, instruments, from_date, backfill_to)
-            drop_weekends(pts)
-            total += upsert(sb, pts)
-        else:
-            log.info("No past gap days to backfill.")
-        if not explicit:
-            if today.weekday() >= 5:
-                log.info("Weekend — skipping live snapshot.")
-            else:
-                log.info("=== Live snapshot for %s ===", today)
-                live = fetch_live_snapshot(session, service, instruments, today.isoformat())
-                total += upsert(sb, live)
+        log.info("=== Pull %s -> %s ===", from_date, to_date)
+        pts = fetch_historical(session, service, instruments, from_date, to_date)
+        drop_weekends(pts)
+        total += upsert(sb, pts)
     finally:
         try:
             session.stop(); log.info("Bloomberg session closed.")
