@@ -10,7 +10,7 @@ import MyCharts from './components/MyCharts'
 import InvestmentPack from './components/InvestmentPack'
 
 const POLL_MS = 3000
-const POLL_TIMEOUT_MS = 30000
+const POLL_TIMEOUT_MS = 240000 // 4 min — the watcher checks every ~1 min, then the pull runs
 
 const TABS = [
   { key: 'pack', label: 'Investment Pack' },
@@ -95,7 +95,8 @@ export default function App() {
             setBanner({ kind: 'bad', text: `Refresh failed: ${r.message || 'unknown error'}` })
           } else if (Date.now() - startedAt > POLL_TIMEOUT_MS) {
             clearInterval(pollTimer.current); setRefreshing(false)
-            setBanner({ kind: 'warn', text: `Request #${req.id} is still "${r.status}". The watcher (on the Bloomberg PC) will process it — not installed yet.` })
+            await loadAll()
+            setBanner({ kind: 'warn', text: `Request #${req.id} is taking longer than usual. It'll finish in the background — click "Reload view" in a minute to see the latest data.` })
           }
         } catch (e) {
           clearInterval(pollTimer.current); setRefreshing(false)
