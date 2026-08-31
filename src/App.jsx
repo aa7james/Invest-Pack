@@ -5,6 +5,7 @@ import {
 } from './lib/data'
 import { fetchCharts } from './lib/charts'
 import { fmtTimestamp } from './lib/format'
+import { downloadDataDump } from './lib/dataDump'
 import ChartBuilder from './components/ChartBuilder'
 import MyCharts from './components/MyCharts'
 import InvestmentPack from './components/InvestmentPack'
@@ -29,9 +30,23 @@ export default function App() {
   const [error, setError] = useState(null)
   const [banner, setBanner] = useState(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [downloading, setDownloading] = useState(false)
   const [tab, setTab] = useState('pack')
 
   const pollTimer = useRef(null)
+
+  const downloadMonth = useCallback(async () => {
+    setDownloading(true)
+    setBanner({ kind: 'info', text: 'Preparing your Excel (last month)…' })
+    try {
+      await downloadDataDump(35)
+      setBanner({ kind: 'good', text: 'Downloaded — check your Downloads folder.' })
+    } catch (e) {
+      setBanner({ kind: 'bad', text: `Download failed: ${e.message || e}` })
+    } finally {
+      setDownloading(false)
+    }
+  }, [])
 
   const loadAll = useCallback(async () => {
     setError(null)
@@ -134,6 +149,9 @@ export default function App() {
           <div className="stamp">Data last updated: <strong>{fmtTimestamp(summary?.last_updated)}</strong></div>
           <div className="btn-row">
             <button className="btn ghost" onClick={loadAll} disabled={loading}>Reload view</button>
+            <button className="btn ghost" onClick={downloadMonth} disabled={downloading}>
+              {downloading ? 'Preparing…' : '⬇ Download last month'}
+            </button>
             <button className="btn" onClick={() => onRefresh('snapshot')} disabled={refreshing}>
               {refreshing ? 'Refreshing…' : 'Refresh from Bloomberg'}
             </button>
