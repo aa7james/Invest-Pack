@@ -1,0 +1,3 @@
+supabase
+python-dotenv
+# blpapi is installed separately from the Bloomberg terminal (comes with the API SDK)

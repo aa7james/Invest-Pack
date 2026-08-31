@@ -1,104 +1,64 @@
+#!/usr/bin/env python3
 """
-Invest-Pack data watcher (same idea as the Fixed Income dashboard).
-Runs quietly on the Bloomberg PC and keeps Supabase in sync:
-
-  * File watch  — whenever "Data Dump - HP.xlsx" is saved (after you refresh it
-                  from Bloomberg), it uploads only the new/changed numbers.
-  * Button      — clicking "Refresh from Bloomberg" in the dashboard also makes
-                  it sync right away, then marks the request done.
-
-No Excel automation, so nothing fragile. Just refresh the Bloomberg workbook and
-save it — the dashboard updates within a minute.
-
-Start with "START DATA WATCHER.bat" (once), or add it to Windows startup with
-"ADD TO STARTUP.bat" so it always runs when you log in.
+watch_and_run.py (Invest-Pack) — checks the pack.data_update_requests queue for a
+pending "Refresh from Bloomberg" request and, if one exists, runs
+historical_pull.py. ONE check per run — fire it every ~1 minute via Windows Task
+Scheduler (pythonw.exe, no console window). Credentials via .env (SUPABASE_URL,
+SUPABASE_KEY=secret key).
 """
+from __future__ import annotations
+
+import logging
 import os
+import re
+import subprocess
 import sys
-import time
-import datetime
-import urllib.error
+from datetime import datetime, timezone
+
+from dotenv import load_dotenv
+from supabase import create_client
+from supabase.lib.client_options import ClientOptions
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, HERE)
-import sync_history as SH  # reuse load_env / api / sync
+load_dotenv(os.path.join(HERE, ".env"))
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
+PULL = os.path.join(HERE, "historical_pull.py")
 
-CHECK_INTERVAL = 20  # seconds between checks
-
-
-def log(msg):
-    print(f"[{datetime.datetime.now().strftime('%H:%M:%S')}] {msg}", flush=True)
-
-
-def now_iso():
-    return datetime.datetime.now().astimezone().isoformat()
-
-
-def file_sig(path):
-    try:
-        st = os.stat(path)
-        return (st.st_mtime, st.st_size)
-    except OSError:
-        return None
-
-
-def do_sync(url, key, excel, reason):
-    log(f"Syncing ({reason})...")
-    try:
-        count = SH.sync(url, key, excel, log=lambda m: log("   " + m)) or 0
-        log(f"Done — {count} datapoints updated.\n")
-        return count, None
-    except Exception as e:
-        log(f"Sync failed: {e}\n")
-        return 0, str(e)
-
-
-def handle_button(url, key, excel):
-    """If the dashboard button queued a request, process it and mark it done."""
-    try:
-        pending = SH.api("GET", url, key,
-                         "/rest/v1/data_update_requests?status=eq.pending&order=requested_at.asc&limit=1")
-    except Exception as e:
-        log(f"(queue check failed: {e})")
-        return
-    if not pending:
-        return
-    req = pending[0]
-    rid = req["id"]
-    log(f"'Refresh from Bloomberg' clicked (request #{rid}).")
-    SH.api("PATCH", url, key, f"/rest/v1/data_update_requests?id=eq.{rid}",
-           body={"status": "processing", "started_at": now_iso()}, extra={"Prefer": "return=minimal"})
-    count, err = do_sync(url, key, excel, f"button #{rid}")
-    SH.api("PATCH", url, key, f"/rest/v1/data_update_requests?id=eq.{rid}",
-           body=({"status": "error", "completed_at": now_iso(), "message": err[:400]} if err else
-                 {"status": "done", "completed_at": now_iso(), "rows_written": count,
-                  "message": f"Synced {count} datapoints"}),
-           extra={"Prefer": "return=minimal"})
+logging.basicConfig(level=logging.INFO,
+                    format="%(asctime)s  %(levelname)-7s  %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
+log = logging.getLogger("watch_and_run")
 
 
 def main():
-    url, key, excel = SH.load_env()
-    log("Invest-Pack watcher running. Leave this window open.")
-    log(f"  Watching: {excel}")
-    log("  It syncs when you save the Excel, or click 'Refresh from Bloomberg'.\n")
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        log.error("SUPABASE_URL and SUPABASE_KEY must be set in .env"); sys.exit(1)
+    sb = create_client(SUPABASE_URL, SUPABASE_KEY, options=ClientOptions(schema="pack"))
 
-    # Initial sync on startup, then remember the file signature.
-    do_sync(url, key, excel, "startup")
-    last_sig = file_sig(excel)
+    running = (sb.table("data_update_requests").select("id").eq("status", "running").limit(1).execute()).data or []
+    if running:
+        log.info("A request is already running — skipping."); return
 
-    while True:
-        try:
-            time.sleep(CHECK_INTERVAL)
-            handle_button(url, key, excel)
-            sig = file_sig(excel)
-            if sig and sig != last_sig:
-                last_sig = sig
-                do_sync(url, key, excel, "Excel saved")
-        except KeyboardInterrupt:
-            log("Stopped."); break
-        except Exception as e:
-            log(f"error: {e}")
-            time.sleep(CHECK_INTERVAL)
+    pending = (sb.table("data_update_requests").select("id")
+               .eq("status", "pending").order("requested_at").limit(1).execute()).data or []
+    if not pending:
+        return
+
+    rid = pending[0]["id"]
+    log.info("Pending request #%s — running historical_pull.py ...", rid)
+    sb.table("data_update_requests").update({"status": "running", "started_at": datetime.now(timezone.utc).isoformat()}).eq("id", rid).execute()
+
+    result = subprocess.run([sys.executable, PULL], capture_output=True, text=True, timeout=1800)
+    tail = ((result.stdout or "") + "\n" + (result.stderr or ""))[-3000:]
+    status = "done" if result.returncode == 0 else "error"
+    m = re.search(r"(\d+) datapoints written", result.stdout or "")
+    rows = int(m.group(1)) if m else None
+    log.info("historical_pull.py finished status=%s rows=%s", status, rows)
+
+    sb.table("data_update_requests").update({
+        "status": status, "message": tail, "rows_written": rows,
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", rid).execute()
 
 
 if __name__ == "__main__":
