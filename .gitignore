@@ -22,3 +22,5 @@ Thumbs.db
 # python
 __pycache__/
 *.pyc
+
+Invest-Pack Data Export*.xlsx
