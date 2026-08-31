@@ -70,18 +70,18 @@ def norm(t):
     return " ".join(str(t).split()) if t not in (None, "") else ""
 
 
-def main():
-    url, key, excel = load_env()
+def sync(url, key, excel, log=print):
+    """Read the Excel, upload only new/changed datapoints. Returns the count."""
     if not os.path.exists(excel):
-        print("ERROR: Excel not found:", excel); sys.exit(1)
+        raise FileNotFoundError("Excel not found: " + excel)
 
-    print("Mapping instruments...")
+    log("Mapping instruments...")
     insts = api("GET", url, key, "/rest/v1/instruments?select=id,category,name,bloomberg_ticker,currency&limit=10000")
     lookup = {}
     for r in insts:
         lookup[(r["category"], r["name"], norm(r.get("bloomberg_ticker")), r.get("currency") or "")] = r["id"]
 
-    print("Melting Excel...")
+    log("Melting Excel...")
     wb = openpyxl.load_workbook(excel, read_only=True, data_only=True)
     excel_pts = {}
     for sheet, cat in CAT_MAP.items():
@@ -103,9 +103,9 @@ def main():
                 iid = lookup.get((cat, str(names[c]).strip(), norm(tickers[c] if c < len(tickers) else None), fx))
                 if iid is not None:
                     excel_pts[(iid, iso)] = float(v)
-    print(f"  {len(excel_pts):,} datapoints in Excel")
+    log(f"  {len(excel_pts):,} datapoints in Excel")
 
-    print("Fetching current data from Supabase...")
+    log("Fetching current data from Supabase...")
     db = {}
     offset = 0
     while True:
@@ -118,23 +118,29 @@ def main():
         if len(d) < 1000:
             break
         offset += 1000
-    print(f"  {len(db):,} datapoints in database")
+    log(f"  {len(db):,} datapoints in database")
 
     changed = [{"instrument_id": iid, "obs_date": iso, "value": v}
                for (iid, iso), v in excel_pts.items()
                if (iid, iso) not in db or abs(db[(iid, iso)] - v) > EPS]
 
     if not changed:
-        print("\nUp to date — nothing to upload.")
-        return
-    print(f"\n{len(changed):,} new/changed datapoints to upload.")
+        log("Up to date — nothing to upload.")
+        return 0
+    log(f"{len(changed):,} new/changed datapoints to upload.")
     total = 0
     for i in range(0, len(changed), BATCH):
         api("POST", url, key, "/rest/v1/pack_data?on_conflict=instrument_id,obs_date",
             body=changed[i:i + BATCH], extra={"Prefer": "resolution=merge-duplicates,return=minimal"})
         total += len(changed[i:i + BATCH])
-        print(f"  ...uploaded {total:,}/{len(changed):,}")
-    print(f"\nDONE. Synced {total:,} datapoints (left {len(db) - 0:,} untouched).")
+        log(f"  ...uploaded {total:,}/{len(changed):,}")
+    log(f"DONE. Synced {total:,} datapoints.")
+    return total
+
+
+def main():
+    url, key, excel = load_env()
+    sync(url, key, excel)
 
 
 if __name__ == "__main__":
