@@ -78,6 +78,8 @@ def fetch_historical(session, service, instruments, from_date, to_date):
         request.set("startDate", from_date.strftime("%Y%m%d"))
         request.set("endDate", to_date.strftime("%Y%m%d"))
         request.set("periodicitySelection", "DAILY")
+        request.set("nonTradingDayFillOption", "NON_TRADING_WEEKDAYS")
+        request.set("nonTradingDayFillMethod", "PREVIOUS_VALUE")
         if ccy:
             request.set("currency", ccy)
         session.sendRequest(request)

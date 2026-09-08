@@ -88,6 +88,12 @@ def fetch_historical(session, service, instruments, from_date, to_date):
         request.set("startDate", from_date.strftime("%Y%m%d"))
         request.set("endDate", to_date.strftime("%Y%m%d"))
         request.set("periodicitySelection", "DAILY")
+        # Fill missing weekdays with the previous value, so weekly-published
+        # indices (e.g. the polymer/fertiliser benchmarks) appear as daily data —
+        # matching how the Bloomberg Excel dump behaves. No effect on genuinely
+        # daily series.
+        request.set("nonTradingDayFillOption", "NON_TRADING_WEEKDAYS")
+        request.set("nonTradingDayFillMethod", "PREVIOUS_VALUE")
         if ccy:
             request.set("currency", ccy)
         session.sendRequest(request)
