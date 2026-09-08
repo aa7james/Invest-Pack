@@ -155,7 +155,11 @@ def main():
         last = find_last_date(sb)
         if last is None:
             log.error("pack_data is empty and no --from given. Aborting."); sys.exit(1)
-        from_date = min(last + timedelta(days=1), today - timedelta(days=3))  # re-pull last 3 days
+        # Always re-pull at least the last 45 days so no series can be left with a
+        # gap (the "last date" is the max across ALL instruments, so a series that
+        # is ahead must not shrink the window for ones that are behind). Longer
+        # absences still pull from the actual last date.
+        from_date = min(last + timedelta(days=1), today - timedelta(days=45))
 
     instruments = load_active_instruments(sb)
     if not instruments:
