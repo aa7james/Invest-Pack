@@ -27,6 +27,14 @@ SUPABASE_URL = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
 BLP_HOST, BLP_PORT = "localhost", 8194
 
+# A few Bloomberg generic tickers come back in a different unit than the pack's
+# history. e.g. CBOT Soybean "S 1 Comdty" now returns dollars/bushel (~12) while
+# the pack has always tracked US cents/bushel (~1200). Multiply those back onto
+# the pack's unit so new data lines up with the chart history. Key = ticker.
+TICKER_SCALE = {
+    "S 1 Comdty": 100.0,   # CBOT Soybean: $/bushel -> cents/bushel
+}
+
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s  %(levelname)-7s  %(message)s", datefmt="%Y-%m-%d %H:%M:%S")
 log = logging.getLogger("historical_pull")
@@ -116,7 +124,7 @@ def fetch_historical(session, service, instruments, from_date, to_date):
                     try:
                         dt = pt.getElementAsDatetime("date")
                         iso = f"{dt.year}-{dt.month:02d}-{dt.day:02d}"
-                        results[(iid, iso)] = pt.getElementAsFloat(field_name)
+                        results[(iid, iso)] = pt.getElementAsFloat(field_name) * TICKER_SCALE.get(ticker, 1.0)
                     except Exception as ex:
                         log.debug("parse error: %s", ex)
             if event.eventType() in (blpapi.Event.RESPONSE, blpapi.Event.TIMEOUT):
