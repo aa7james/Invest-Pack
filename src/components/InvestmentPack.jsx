@@ -32,6 +32,14 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag, e
   const ownedManual = manualSeries.filter((inst) => editorOwner.get(inst.id) === chart.id)
   const manualInstrument = ownedManual[0]
 
+  // A seasonal (run-rate) chart plots a manual series that's "owned" for editing
+  // by an earlier chart (e.g. Protein Prices). James still wants to update it
+  // straight from the run-rate view, so show its own ✎ editor here too — it's the
+  // same underlying rows, so editing from either place is fine.
+  const seasonalManual = chart.chart_type === 'seasonal' && !manualInstrument
+    ? manualSeries[0]
+    : null
+
   // Weekly crop-progress charts have two manual inputs (deliveries + adjustments).
   const isCrop = chart.chart_type === 'crop_progress'
   const deliveriesInst = isCrop
@@ -118,9 +126,9 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag, e
                 />
               )}
             </div>
-          ) : manualInstrument && (
-            <ManualDataEntry instrument={manualInstrument} onAdded={() => setReloadKey((k) => k + 1)} />
-          )}
+          ) : (manualInstrument || seasonalManual) ? (
+            <ManualDataEntry instrument={manualInstrument || seasonalManual} onAdded={() => setReloadKey((k) => k + 1)} />
+          ) : null}
         </>
       )}
       <textarea className="annotation" placeholder="Add a comment for the pack…"
