@@ -7,13 +7,55 @@ import ImagePanel from './ImagePanel'
 import StackedBarPanel from './StackedBarPanel'
 import Lazy from './Lazy'
 import { updateChart } from '../lib/charts'
+import { getAxis, saveAxis } from '../lib/axisPrefs'
 
 // Preferred section order; anything else falls to the end alphabetically.
 const CAT_ORDER = ['Chemicals', 'Energy', 'Metals', 'Soft Commodities', 'Chicken', 'Gaming', 'Manheim']
 
+// Chart types whose x-axis is month-of-year or week-of-season rather than a real
+// date, so a "from/to date" window doesn't apply — those get Y-axis limits only.
+const NON_DATE_X = new Set(['seasonal', 'macau_ytd', 'crop_progress', 'iqf_ratio', 'iqf_ratio_lag'])
+
+// The chart kinds that render through SeriesChart (so axis limits make sense).
+// 'image' and 'stacked_bar' use their own panels and are excluded.
+const AXIS_CAPABLE = (t) => t !== 'image' && t !== 'stacked_bar'
+
 function catRank(cat) {
   const i = CAT_ORDER.indexOf(cat)
   return i === -1 ? CAT_ORDER.length : i
+}
+
+function AxisControls({ chart, hasDateX, axis, setAxis }) {
+  const blank = { x_min: '', x_max: '', y_min: '', y_max: '' }
+  const [form, setForm] = useState({ ...blank, ...axis })
+  const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
+
+  function apply() {
+    saveAxis(chart.id, form)
+    setAxis({ ...form })
+  }
+  function reset() {
+    setForm({ ...blank })
+    saveAxis(chart.id, {})
+    setAxis({})
+  }
+
+  const active = ['x_min', 'x_max', 'y_min', 'y_max'].some((k) => axis[k] != null && axis[k] !== '')
+
+  return (
+    <div className="axis-controls no-print">
+      {hasDateX && (
+        <>
+          <label>From<input type="date" value={form.x_min} onChange={set('x_min')} /></label>
+          <label>To<input type="date" value={form.x_max} onChange={set('x_max')} /></label>
+        </>
+      )}
+      <label>Y min<input type="number" step="any" placeholder="auto" value={form.y_min} onChange={set('y_min')} /></label>
+      <label>Y max<input type="number" step="any" placeholder="auto" value={form.y_max} onChange={set('y_max')} /></label>
+      <button className="btn small" onClick={apply}>Apply</button>
+      {active && <button className="btn small ghost" onClick={reset}>Reset</button>}
+    </div>
+  )
 }
 
 function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag, editorOwner }) {
@@ -21,6 +63,8 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag, e
   const [reloadKey, setReloadKey] = useState(0)
   const [cropOpen, setCropOpen] = useState(false)
   const [multiOpen, setMultiOpen] = useState(false)
+  const [axis, setAxis] = useState(() => getAxis(chart.id))
+  const [axisOpen, setAxisOpen] = useState(false)
   const ref = useRef(null)
 
   // Only the chart that "owns" a manual series (its first value chart) shows the
@@ -76,6 +120,10 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag, e
           ⠿ drag
         </span>
         <div className="card-actions">
+          {AXIS_CAPABLE(chart.chart_type) && (
+            <button className={`btn small ghost ${axisOpen ? 'on' : ''}`} onClick={() => setAxisOpen((v) => !v)}
+              title="Set the date range and y-axis min/max for this chart">⚙ Axis</button>
+          )}
           <button className="btn small ghost" onClick={removeFromPack}>Remove</button>
         </div>
       </div>
@@ -86,9 +134,13 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag, e
         <StackedBarPanel chart={chart} onSaved={onChanged} />
       ) : (
         <>
+          {axisOpen && AXIS_CAPABLE(chart.chart_type) && (
+            <AxisControls chart={chart} hasDateX={!NON_DATE_X.has(chart.chart_type)} axis={axis} setAxis={setAxis} />
+          )}
           <Lazy height={420} eager={eager}>
             <SeriesChart def={chart} range={chart.time_range || '1Y'} anchorISO={anchorISO}
-              instrumentsById={instrumentsById} height={420} reloadKey={reloadKey} />
+              instrumentsById={instrumentsById} height={420} reloadKey={reloadKey}
+              xMin={axis.x_min} xMax={axis.x_max} yMin={axis.y_min} yMax={axis.y_max} />
           </Lazy>
           {isCrop && deliveriesInst && adjustmentsInst ? (
             <div className="manual-entry no-print">

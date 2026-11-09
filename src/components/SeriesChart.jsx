@@ -42,7 +42,8 @@ function keysFor(series, instrumentsById) {
   })
 }
 
-export default function SeriesChart({ def, range, anchorISO, instrumentsById, height = 280, reloadKey = 0 }) {
+export default function SeriesChart({ def, range, anchorISO, instrumentsById, height = 280, reloadKey = 0,
+  xMin = null, xMax = null, yMin = null, yMax = null }) {
   const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {}, xKey: 'date', ticks: null, tickLabels: null, dual: null, stacked: false, bar: false, stackedBar: false, domainMax: null })
 
   useEffect(() => {
@@ -201,6 +202,25 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
   if (state.loading) return <div className="chart-msg" style={{ height }}>Loading chart…</div>
   if (!state.data.length) return <div className="chart-msg" style={{ height }}>No data in this range.</div>
 
+  // --- Per-chart axis overrides (optional; blank = automatic) ----------------
+  // Date window: only meaningful on a true date x-axis (not the month/week
+  // seasonal overlays), so we filter the rows shown. Y-axis: clamp the vertical
+  // scale when a min and/or max is supplied.
+  const xMinV = xMin || null
+  const xMaxV = xMax || null
+  const yMinV = yMin === '' || yMin == null ? null : Number(yMin)
+  const yMaxV = yMax === '' || yMax == null ? null : Number(yMax)
+  const yHasOverride = (yMinV != null && !Number.isNaN(yMinV)) || (yMaxV != null && !Number.isNaN(yMaxV))
+  const yDomainOv = [
+    yMinV != null && !Number.isNaN(yMinV) ? yMinV : 'auto',
+    yMaxV != null && !Number.isNaN(yMaxV) ? yMaxV : 'auto',
+  ]
+  const useXFilter = state.xKey === 'date' && (xMinV || xMaxV)
+  const data = useXFilter
+    ? state.data.filter((r) => (!xMinV || r.date >= xMinV) && (!xMaxV || r.date <= xMaxV))
+    : state.data
+  if (!data.length) return <div className="chart-msg" style={{ height }}>No data in the chosen date range.</div>
+
   // Dual-axis chart (e.g. share price line + ratio bars on a second axis).
   if (state.dual) {
     const { left, right, leftBar, rightBar } = state.dual
@@ -208,12 +228,13 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
       <div>
         <div style={{ width: '100%', height }}>
           <ResponsiveContainer>
-            <ComposedChart data={state.data} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
+            <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: 0 }}>
               <CartesianGrid stroke="#2a3550" strokeDasharray="3 3" />
               <XAxis dataKey="date" tickFormatter={axisDate}
                 tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={60} stroke="#2a3550" />
               <YAxis yAxisId="L" tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
-                domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={82} />
+                domain={yHasOverride ? yDomainOv : ['auto', 'auto']} allowDataOverflow={yHasOverride}
+                tickFormatter={(v) => fmtNum(v)} width={82} />
               <YAxis yAxisId="R" orientation="right" tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
                 domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={66} />
               <Tooltip contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
@@ -247,12 +268,13 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
       <div>
         <div style={{ width: '100%', height }}>
           <ResponsiveContainer>
-            <AreaChart data={state.data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+            <AreaChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
               <CartesianGrid stroke="#2a3550" strokeDasharray="3 3" />
               <XAxis dataKey="date" tickFormatter={axisDate}
                 tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={60} stroke="#2a3550" />
               <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
-                domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={94} />
+                domain={yHasOverride ? yDomainOv : ['auto', 'auto']} allowDataOverflow={yHasOverride}
+                tickFormatter={(v) => fmtNum(v)} width={94} />
               <Tooltip contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
                 labelStyle={{ color: '#e7ecf5' }} labelFormatter={axisDate} formatter={(v) => fmtNum(v)} />
               {state.keys.map((k, i) => (
@@ -281,12 +303,13 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
       <div>
         <div style={{ width: '100%', height }}>
           <ResponsiveContainer>
-            <ComposedChart data={state.data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+            <ComposedChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
               <CartesianGrid stroke="#2a3550" strokeDasharray="3 3" />
               <XAxis dataKey="date" tickFormatter={axisDate}
                 tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={20} stroke="#2a3550" />
               <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
-                domain={state.domainMax ? [0, state.domainMax] : ['auto', 'auto']} allowDataOverflow={!!state.domainMax}
+                domain={yHasOverride ? yDomainOv : (state.domainMax ? [0, state.domainMax] : ['auto', 'auto'])}
+                allowDataOverflow={yHasOverride || !!state.domainMax}
                 tickFormatter={(v) => fmtNum(v)} width={94} />
               <Tooltip contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
                 labelStyle={{ color: '#e7ecf5' }} labelFormatter={axisDate} formatter={(v) => fmtNum(v)} />
@@ -314,12 +337,13 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
       <div>
         <div style={{ width: '100%', height }}>
           <ResponsiveContainer>
-            <ComposedChart data={state.data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+            <ComposedChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
               <CartesianGrid stroke="#2a3550" strokeDasharray="3 3" />
               <XAxis dataKey="date" tickFormatter={axisDate}
                 tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={20} stroke="#2a3550" />
               <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
-                domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={94} />
+                domain={yHasOverride ? yDomainOv : ['auto', 'auto']} allowDataOverflow={yHasOverride}
+                tickFormatter={(v) => fmtNum(v)} width={94} />
               <Tooltip contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
                 labelStyle={{ color: '#e7ecf5' }} labelFormatter={axisDate} formatter={(v) => fmtNum(v)} />
               {state.keys.map((k, i) => (
@@ -353,7 +377,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
     <div>
       <div style={{ width: '100%', height }}>
         <ResponsiveContainer>
-          <LineChart data={state.data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+          <LineChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
             <CartesianGrid stroke="#2a3550" strokeDasharray="3 3" />
             <XAxis dataKey={state.xKey}
               tickFormatter={state.xKey === 'date' ? axisDate
@@ -362,7 +386,8 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
               ticks={state.xKey === 'week' && state.ticks ? state.ticks : undefined}
               tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={state.xKey === 'date' ? 60 : 0} stroke="#2a3550" />
             <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
-              domain={['auto', 'auto']} tickFormatter={(v) => fmtNum(v)} width={94} />
+              domain={yHasOverride ? yDomainOv : ['auto', 'auto']} allowDataOverflow={yHasOverride}
+              tickFormatter={(v) => fmtNum(v)} width={94} />
             <Tooltip
               contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
               labelStyle={{ color: '#e7ecf5' }}

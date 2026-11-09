@@ -412,6 +412,42 @@ a { color: var(--accent); }
 .manual-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 .manual-form .input { width: auto; margin-bottom: 0; }
 
+/* Per-chart axis controls (date window + y-axis min/max) */
+.axis-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  align-items: flex-end;
+  margin: 2px 0 12px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
+.axis-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 11px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.axis-controls input {
+  width: 130px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font-size: 13px;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.axis-controls input[type="number"] { width: 90px; }
+.axis-controls .btn { align-self: flex-end; }
+.btn.small.ghost.on { border-color: var(--accent, #4f8cff); color: var(--accent, #4f8cff); }
+
 /* Pack title header (shown on screen and in print) */
 .pack-title h2 { margin: 0; font-size: 22px; }
 .pack-title .muted { font-size: 13px; margin-top: 2px; }
