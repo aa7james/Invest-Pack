@@ -1,0 +1,36 @@
+name: Keep Supabase awake
+
+# Supabase's free tier pauses a project after ~7 days with no activity.
+# This job sends one tiny read request on a schedule so the Invest-Pack
+# database never goes idle long enough to be paused. It runs on GitHub's
+# servers, so it works even when the Bloomberg PC and everything else is off.
+#
+# The key below is the PUBLISHABLE key (read-only on the `pack` schema) — the
+# same one already shipped in src/config.js. It is safe to be public. The
+# secret key is never used here.
+
+on:
+  schedule:
+    - cron: '17 6 * * *'   # every day at 06:17 UTC
+  workflow_dispatch: {}      # lets you run it by hand from the Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST (one-row read)
+        env:
+          SUPABASE_URL: https://knciqlbngtmsgmhnbfce.supabase.co
+          SUPABASE_KEY: sb_publishable_YwMLfMra6vzUnfvkn9uqTw_akegqlYp
+        run: |
+          code=$(curl -sS -o /dev/null -w '%{http_code}' \
+            -H "apikey: ${SUPABASE_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_KEY}" \
+            -H "Accept-Profile: pack" \
+            "${SUPABASE_URL}/rest/v1/instruments?select=id&limit=1")
+          echo "Supabase responded with HTTP ${code}"
+          if [ "${code}" != "200" ]; then
+            echo "::error::Unexpected status ${code} — the keep-awake ping did not get a healthy response."
+            exit 1
+          fi
+          echo "Database is awake. ✅"
