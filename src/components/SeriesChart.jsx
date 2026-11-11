@@ -208,18 +208,44 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
   // scale when a min and/or max is supplied.
   const xMinV = xMin || null
   const xMaxV = xMax || null
-  const yMinV = yMin === '' || yMin == null ? null : Number(yMin)
-  const yMaxV = yMax === '' || yMax == null ? null : Number(yMax)
-  const yHasOverride = (yMinV != null && !Number.isNaN(yMinV)) || (yMaxV != null && !Number.isNaN(yMaxV))
-  const yDomainOv = [
-    yMinV != null && !Number.isNaN(yMinV) ? yMinV : 'auto',
-    yMaxV != null && !Number.isNaN(yMaxV) ? yMaxV : 'auto',
-  ]
+  const yMinV = yMin === '' || yMin == null || Number.isNaN(Number(yMin)) ? null : Number(yMin)
+  const yMaxV = yMax === '' || yMax == null || Number.isNaN(Number(yMax)) ? null : Number(yMax)
+  const yHasOverride = yMinV != null || yMaxV != null
   const useXFilter = state.xKey === 'date' && (xMinV || xMaxV)
   const data = useXFilter
     ? state.data.filter((r) => (!xMinV || r.date >= xMinV) && (!xMaxV || r.date <= xMaxV))
     : state.data
   if (!data.length) return <div className="chart-msg" style={{ height }}>No data in the chosen date range.</div>
+
+  // Recharts drops a numeric domain bound if the other side is the string
+  // 'auto', so when only one of min/max is set we fill the other from the data's
+  // own extent. Stacked charts (and bars) start at 0 and top out at the stack
+  // sum; line/dual charts use the actual min/max (which may be negative).
+  let yDomainOv = ['auto', 'auto']
+  if (yHasOverride) {
+    const barLike = state.bar || state.stacked || state.stackedBar
+    const summed = state.stacked || state.stackedBar
+    let lo = Infinity
+    let hi = -Infinity
+    for (const row of data) {
+      if (summed) {
+        const t = state.keys.reduce((s, k) => s + (row[k] || 0), 0)
+        if (t < lo) lo = t
+        if (t > hi) hi = t
+      } else {
+        for (const k of state.keys) {
+          const v = row[k]
+          if (typeof v === 'number' && !Number.isNaN(v)) {
+            if (v < lo) lo = v
+            if (v > hi) hi = v
+          }
+        }
+      }
+    }
+    if (!Number.isFinite(lo)) { lo = 0; hi = 1 }
+    if (barLike && lo > 0) lo = 0
+    yDomainOv = [yMinV != null ? yMinV : lo, yMaxV != null ? yMaxV : hi]
+  }
 
   // Dual-axis chart (e.g. share price line + ratio bars on a second axis).
   if (state.dual) {

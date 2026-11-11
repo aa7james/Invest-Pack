@@ -14,6 +14,16 @@ function color(i) {
   return `hsl(${h}, 65%, ${l}%)`
 }
 
+// Round a number up to a tidy 1 / 2 / 2.5 / 5 / 10 × 10^n value, so an
+// auto-chosen axis top still lands on a clean number.
+function niceCeil(x) {
+  if (!(x > 0)) return x || 0
+  const e = Math.pow(10, Math.floor(Math.log10(x)))
+  const f = x / e
+  const n = f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10
+  return n * e
+}
+
 const isYear = (v) =>
   (typeof v === 'string' && /^\s*\d{4}\s*[AEae]?\s*$/.test(v)) ||
   (typeof v === 'number' && v >= 1990 && v <= 2100)
@@ -69,13 +79,9 @@ export default function StackedBarPanel({ chart, onSaved, xMin = null, xMax = nu
   // (e.g. "2025A"), so the "from/to" window filters by the 4-digit year.
   const xMinY = xMin ? parseInt(xMin, 10) : null
   const xMaxY = xMax ? parseInt(xMax, 10) : null
-  const yMinV = yMin === '' || yMin == null ? null : Number(yMin)
-  const yMaxV = yMax === '' || yMax == null ? null : Number(yMax)
-  const yHasOverride = (yMinV != null && !Number.isNaN(yMinV)) || (yMaxV != null && !Number.isNaN(yMaxV))
-  const yDomainOv = [
-    yMinV != null && !Number.isNaN(yMinV) ? yMinV : 'auto',
-    yMaxV != null && !Number.isNaN(yMaxV) ? yMaxV : 'auto',
-  ]
+  const yMinV = yMin === '' || yMin == null || Number.isNaN(Number(yMin)) ? null : Number(yMin)
+  const yMaxV = yMax === '' || yMax == null || Number.isNaN(Number(yMax)) ? null : Number(yMax)
+  const yHasOverride = yMinV != null || yMaxV != null
   const yearOf = (v) => { const m = String(v).match(/\d{4}/); return m ? parseInt(m[0], 10) : null }
   const shown = (xMinY || xMaxY)
     ? data.filter((r) => {
@@ -83,6 +89,17 @@ export default function StackedBarPanel({ chart, onSaved, xMin = null, xMax = nu
       return y == null || ((!xMinY || y >= xMinY) && (!xMaxY || y <= xMaxY))
     })
     : data
+  // Recharts drops a numeric domain bound when the other bound is the string
+  // 'auto', so when only one of min/max is set, fill the other with a real
+  // number: 0 at the bottom (bars start at zero) and the rounded-up tallest
+  // stack at the top.
+  const stackMax = shown.length
+    ? Math.max(0, ...shown.map((r) => keys.reduce((s, k) => s + (r[k] || 0), 0)))
+    : 0
+  const yDomainOv = [
+    yMinV != null ? yMinV : 0,
+    yMaxV != null ? yMaxV : niceCeil(stackMax),
+  ]
 
   async function loadFile(file) {
     if (!file) return
