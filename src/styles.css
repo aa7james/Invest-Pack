@@ -446,7 +446,10 @@ a { color: var(--accent); }
 }
 .axis-controls input[type="number"] { width: 90px; }
 .axis-controls .btn { align-self: flex-end; }
-.btn.small.ghost.on { border-color: var(--accent, #4f8cff); color: var(--accent, #4f8cff); }
+.axis-controls .axis-size { flex-direction: row; align-items: center; gap: 8px; }
+.size-buttons { display: inline-flex; gap: 4px; }
+.size-buttons .btn.tiny { min-width: 30px; }
+.btn.ghost.on { border-color: var(--accent, #4f8cff); color: var(--accent, #4f8cff); }
 
 /* Pack title header (shown on screen and in print) */
 .pack-title h2 { margin: 0; font-size: 22px; }

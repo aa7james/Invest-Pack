@@ -16,42 +16,75 @@ const CAT_ORDER = ['Chemicals', 'Energy', 'Metals', 'Soft Commodities', 'Chicken
 // date, so a "from/to date" window doesn't apply — those get Y-axis limits only.
 const NON_DATE_X = new Set(['seasonal', 'macau_ytd', 'crop_progress', 'iqf_ratio', 'iqf_ratio_lag'])
 
-// The chart kinds that render through SeriesChart (so axis limits make sense).
-// 'image' and 'stacked_bar' use their own panels and are excluded.
-const AXIS_CAPABLE = (t) => t !== 'image' && t !== 'stacked_bar'
+// Every graph can be adjusted except pasted-image panels (which have no axes).
+const AXIS_CAPABLE = (t) => t !== 'image'
+
+// Which kind of x-axis a chart has, so the controls offer the right inputs:
+//  - 'date'  → From/To date pickers (normal time-series charts)
+//  - 'year'  → From/To year boxes (the stacked-bar capex-style charts)
+//  - 'none'  → no x controls (month/week seasonal overlays) — y + size only
+function xKindFor(t) {
+  if (t === 'stacked_bar') return 'year'
+  if (NON_DATE_X.has(t)) return 'none'
+  return 'date'
+}
+
+// Chart-height presets for the Size control.
+const SIZES = [
+  { label: 'S', h: 300 },
+  { label: 'M', h: 440 },
+  { label: 'L', h: 640 },
+]
 
 function catRank(cat) {
   const i = CAT_ORDER.indexOf(cat)
   return i === -1 ? CAT_ORDER.length : i
 }
 
-function AxisControls({ chart, hasDateX, axis, setAxis }) {
+function AxisControls({ chart, xKind, axis, setAxis }) {
   const blank = { x_min: '', x_max: '', y_min: '', y_max: '' }
   const [form, setForm] = useState({ ...blank, ...axis })
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  function apply() {
-    saveAxis(chart.id, form)
-    setAxis({ ...form })
+  // Save + apply a whole settings object (so size buttons act instantly, while
+  // the min/max boxes wait for Apply).
+  function commit(next) {
+    setForm(next)
+    saveAxis(chart.id, next)
+    setAxis({ ...next })
   }
-  function reset() {
-    setForm({ ...blank })
-    saveAxis(chart.id, {})
-    setAxis({})
-  }
+  const apply = () => commit(form)
+  const reset = () => commit({ ...blank })
+  const setHeight = (h) => commit({ ...form, height: form.height === h ? undefined : h })
 
-  const active = ['x_min', 'x_max', 'y_min', 'y_max'].some((k) => axis[k] != null && axis[k] !== '')
+  const active = ['x_min', 'x_max', 'y_min', 'y_max', 'height']
+    .some((k) => axis[k] != null && axis[k] !== '')
 
   return (
     <div className="axis-controls no-print">
-      {hasDateX && (
+      {xKind === 'date' && (
         <>
-          <label>From<input type="date" value={form.x_min} onChange={set('x_min')} /></label>
-          <label>To<input type="date" value={form.x_max} onChange={set('x_max')} /></label>
+          <label>From<input type="date" value={form.x_min || ''} onChange={set('x_min')} /></label>
+          <label>To<input type="date" value={form.x_max || ''} onChange={set('x_max')} /></label>
         </>
       )}
-      <label>Y min<input type="number" step="any" placeholder="auto" value={form.y_min} onChange={set('y_min')} /></label>
-      <label>Y max<input type="number" step="any" placeholder="auto" value={form.y_max} onChange={set('y_max')} /></label>
+      {xKind === 'year' && (
+        <>
+          <label>From year<input type="number" placeholder="all" value={form.x_min || ''} onChange={set('x_min')} /></label>
+          <label>To year<input type="number" placeholder="all" value={form.x_max || ''} onChange={set('x_max')} /></label>
+        </>
+      )}
+      <label>Y min<input type="number" step="any" placeholder="auto" value={form.y_min || ''} onChange={set('y_min')} /></label>
+      <label>Y max<input type="number" step="any" placeholder="auto" value={form.y_max || ''} onChange={set('y_max')} /></label>
+      <label className="axis-size">Size
+        <span className="size-buttons">
+          {SIZES.map((s) => (
+            <button key={s.label} type="button"
+              className={`btn tiny ghost ${form.height === s.h ? 'on' : ''}`}
+              onClick={() => setHeight(s.h)}>{s.label}</button>
+          ))}
+        </span>
+      </label>
       <button className="btn small" onClick={apply}>Apply</button>
       {active && <button className="btn small ghost" onClick={reset}>Reset</button>}
     </div>
@@ -122,7 +155,7 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag, e
         <div className="card-actions">
           {AXIS_CAPABLE(chart.chart_type) && (
             <button className={`btn small ghost ${axisOpen ? 'on' : ''}`} onClick={() => setAxisOpen((v) => !v)}
-              title="Set the date range and y-axis min/max for this chart">⚙ Axis</button>
+              title="Resize this chart and set its date range / y-axis min-max">⚙ Adjust</button>
           )}
           <button className="btn small ghost" onClick={removeFromPack}>Remove</button>
         </div>
@@ -131,15 +164,21 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag, e
       {chart.chart_type === 'image' ? (
         <ImagePanel chart={chart} onSaved={onChanged} />
       ) : chart.chart_type === 'stacked_bar' ? (
-        <StackedBarPanel chart={chart} onSaved={onChanged} />
+        <>
+          {axisOpen && (
+            <AxisControls chart={chart} xKind="year" axis={axis} setAxis={setAxis} />
+          )}
+          <StackedBarPanel chart={chart} onSaved={onChanged}
+            xMin={axis.x_min} xMax={axis.x_max} yMin={axis.y_min} yMax={axis.y_max} height={axis.height} />
+        </>
       ) : (
         <>
-          {axisOpen && AXIS_CAPABLE(chart.chart_type) && (
-            <AxisControls chart={chart} hasDateX={!NON_DATE_X.has(chart.chart_type)} axis={axis} setAxis={setAxis} />
+          {axisOpen && (
+            <AxisControls chart={chart} xKind={xKindFor(chart.chart_type)} axis={axis} setAxis={setAxis} />
           )}
-          <Lazy height={420} eager={eager}>
+          <Lazy height={axis.height || 420} eager={eager}>
             <SeriesChart def={chart} range={chart.time_range || '1Y'} anchorISO={anchorISO}
-              instrumentsById={instrumentsById} height={420} reloadKey={reloadKey}
+              instrumentsById={instrumentsById} height={axis.height || 420} reloadKey={reloadKey}
               xMin={axis.x_min} xMax={axis.x_max} yMin={axis.y_min} yMax={axis.y_max} />
           </Lazy>
           {isCrop && deliveriesInst && adjustmentsInst ? (

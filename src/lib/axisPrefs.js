@@ -6,7 +6,7 @@
 // into the PDF, with no database change and no setup. They're per-browser: a
 // different computer or a cleared cache starts fresh.
 
-const FIELDS = ['x_min', 'x_max', 'y_min', 'y_max']
+const FIELDS = ['x_min', 'x_max', 'y_min', 'y_max', 'height']
 const keyFor = (id) => `investpack_axis_${id}`
 
 export function getAxis(id) {

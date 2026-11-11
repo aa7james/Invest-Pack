@@ -46,7 +46,7 @@ function parseWorkbook(arrayBuffer) {
   return { years, series }
 }
 
-export default function StackedBarPanel({ chart, onSaved }) {
+export default function StackedBarPanel({ chart, onSaved, xMin = null, xMax = null, yMin = null, yMax = null, height = 360 }) {
   const [table, setTable] = useState(() => {
     try { return chart.image_data ? JSON.parse(chart.image_data) : null } catch { return null }
   })
@@ -64,6 +64,25 @@ export default function StackedBarPanel({ chart, onSaved }) {
     })
     return { data: d, keys: k }
   }, [table])
+
+  // Optional per-chart overrides (blank = automatic). The x-axis here is years
+  // (e.g. "2025A"), so the "from/to" window filters by the 4-digit year.
+  const xMinY = xMin ? parseInt(xMin, 10) : null
+  const xMaxY = xMax ? parseInt(xMax, 10) : null
+  const yMinV = yMin === '' || yMin == null ? null : Number(yMin)
+  const yMaxV = yMax === '' || yMax == null ? null : Number(yMax)
+  const yHasOverride = (yMinV != null && !Number.isNaN(yMinV)) || (yMaxV != null && !Number.isNaN(yMaxV))
+  const yDomainOv = [
+    yMinV != null && !Number.isNaN(yMinV) ? yMinV : 'auto',
+    yMaxV != null && !Number.isNaN(yMaxV) ? yMaxV : 'auto',
+  ]
+  const yearOf = (v) => { const m = String(v).match(/\d{4}/); return m ? parseInt(m[0], 10) : null }
+  const shown = (xMinY || xMaxY)
+    ? data.filter((r) => {
+      const y = yearOf(r.year)
+      return y == null || ((!xMinY || y >= xMinY) && (!xMaxY || y <= xMaxY))
+    })
+    : data
 
   async function loadFile(file) {
     if (!file) return
@@ -103,12 +122,14 @@ export default function StackedBarPanel({ chart, onSaved }) {
     <div>
       {data.length ? (
         <>
-        <div style={{ width: '100%', height: 360 }}>
+        <div style={{ width: '100%', height }}>
           <ResponsiveContainer>
-            <BarChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+            <BarChart data={shown} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
               <CartesianGrid stroke="#2a3550" strokeDasharray="3 3" />
               <XAxis dataKey="year" tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550" />
-              <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550" width={70} tickFormatter={(v) => fmtNum(v)} />
+              <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550" width={70}
+                domain={yHasOverride ? yDomainOv : ['auto', 'auto']} allowDataOverflow={yHasOverride}
+                tickFormatter={(v) => fmtNum(v)} />
               <Tooltip content={<CustomTip />} />
               {keys.map((k, i) => (
                 <Bar key={k} dataKey={k} stackId="a" fill={color(i)} isAnimationActive={false} />
