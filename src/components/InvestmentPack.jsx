@@ -36,12 +36,34 @@ const SIZES = [
   { label: 'L', h: 640 },
 ]
 
+// Quick date-range presets for date-axis charts. Each sets the "From" date
+// relative to the latest data point and leaves "To" open (= up to the latest).
+const RANGES = [
+  { label: '1M', months: 1 },
+  { label: '3M', months: 3 },
+  { label: '6M', months: 6 },
+  { label: 'YTD', ytd: true },
+  { label: '1Y', months: 12 },
+  { label: '3Y', months: 36 },
+  { label: '5Y', months: 60 },
+  { label: '10Y', months: 120 },
+]
+
+// Start date for a quick range, measured back from the chart's latest point.
+function rangeStartISO(anchorISO, preset) {
+  const end = anchorISO ? new Date(anchorISO) : new Date()
+  if (preset.ytd) return `${end.getFullYear()}-01-01`
+  const d = new Date(end)
+  d.setMonth(d.getMonth() - preset.months)
+  return d.toISOString().slice(0, 10)
+}
+
 function catRank(cat) {
   const i = CAT_ORDER.indexOf(cat)
   return i === -1 ? CAT_ORDER.length : i
 }
 
-function AxisControls({ chart, xKind, axis, setAxis }) {
+function AxisControls({ chart, xKind, axis, setAxis, anchorISO }) {
   const blank = { x_min: '', x_max: '', y_min: '', y_max: '' }
   const [form, setForm] = useState({ ...blank, ...axis })
   const set = (k) => (e) => setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -64,6 +86,14 @@ function AxisControls({ chart, xKind, axis, setAxis }) {
     <div className="axis-controls no-print">
       {xKind === 'date' && (
         <>
+          <span className="quick-ranges">
+            {RANGES.map((r) => (
+              <button key={r.label} type="button" className="btn tiny ghost"
+                onClick={() => commit({ ...form, x_min: rangeStartISO(anchorISO, r), x_max: '' })}>
+                {r.label}
+              </button>
+            ))}
+          </span>
           <label>From<input type="date" value={form.x_min || ''} onChange={set('x_min')} /></label>
           <label>To<input type="date" value={form.x_max || ''} onChange={set('x_max')} /></label>
         </>
@@ -174,7 +204,7 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag, e
       ) : (
         <>
           {axisOpen && (
-            <AxisControls chart={chart} xKind={xKindFor(chart.chart_type)} axis={axis} setAxis={setAxis} />
+            <AxisControls chart={chart} xKind={xKindFor(chart.chart_type)} axis={axis} setAxis={setAxis} anchorISO={anchorISO} />
           )}
           <Lazy height={axis.height || 420} eager={eager}>
             <SeriesChart def={chart} range={chart.time_range || '1Y'} anchorISO={anchorISO}

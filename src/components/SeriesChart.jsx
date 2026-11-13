@@ -212,10 +212,39 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
   const yMaxV = yMax === '' || yMax == null || Number.isNaN(Number(yMax)) ? null : Number(yMax)
   const yHasOverride = yMinV != null || yMaxV != null
   const useXFilter = state.xKey === 'date' && (xMinV || xMaxV)
-  const data = useXFilter
+  let data = useXFilter
     ? state.data.filter((r) => (!xMinV || r.date >= xMinV) && (!xMaxV || r.date <= xMaxV))
     : state.data
   if (!data.length) return <div className="chart-msg" style={{ height }}>No data in the chosen date range.</div>
+
+  // An indexed chart rebases each series to 100 at its first data point. When the
+  // user narrows the date window, re-base to the first point *inside* that window
+  // so every line starts at 100 on the chosen start date — a true from-the-start
+  // comparison, instead of carrying the base from years earlier.
+  if (def.chart_type === 'index' && useXFilter) {
+    const firsts = {}
+    for (const k of state.keys) {
+      for (const row of data) {
+        if (row[k] != null) { firsts[k] = row[k]; break }
+      }
+    }
+    data = data.map((row) => {
+      const r = { date: row.date }
+      for (const k of state.keys) {
+        r[k] = (row[k] != null && firsts[k]) ? (row[k] / firsts[k]) * 100 : null
+      }
+      return r
+    })
+  }
+
+  // Legend values should reflect what's actually plotted: the last point in the
+  // shown window, and after any re-indexing above — not the overall latest value.
+  const shownLast = {}
+  for (const k of state.keys) {
+    for (let i = data.length - 1; i >= 0; i--) {
+      if (data[i][k] != null) { shownLast[k] = data[i][k]; break }
+    }
+  }
 
   // Recharts drops a numeric domain bound if the other side is the string
   // 'auto', so when only one of min/max is set we fill the other from the data's
@@ -280,7 +309,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           {state.keys.map((k) => (
             <span className="leg" key={k}>
               <i style={{ background: left.includes(k) ? (leftBar ? '#4f8cff' : '#6c7a99') : '#e0a13a' }} />
-              {k}: <strong>{fmtNum(state.last[k])}</strong>
+              {k}: <strong>{fmtNum(shownLast[k])}</strong>
             </span>
           ))}
         </div>
@@ -315,7 +344,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           {state.keys.map((k, i) => (
             <span className="leg" key={k}>
               <i style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-              {k}: <strong>{fmtNum(state.last[k])}</strong>
+              {k}: <strong>{fmtNum(shownLast[k])}</strong>
             </span>
           ))}
         </div>
@@ -349,7 +378,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           {state.keys.map((k, i) => (
             <span className="leg" key={k}>
               <i style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-              {k}: <strong>{fmtNum(state.last[k])}</strong>
+              {k}: <strong>{fmtNum(shownLast[k])}</strong>
             </span>
           ))}
         </div>
@@ -382,7 +411,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           {state.keys.map((k, i) => (
             <span className="leg" key={k}>
               <i style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-              {k}: <strong>{fmtNum(state.last[k])}</strong>
+              {k}: <strong>{fmtNum(shownLast[k])}</strong>
             </span>
           ))}
         </div>
@@ -441,7 +470,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
             <span className="leg" key={k}
               style={isCurrent ? { color: '#fff', fontWeight: 700 } : undefined}>
               <i style={{ background: colorFor(k, i) }} />
-              {k}: <strong>{fmtNum(state.last[k])}</strong>
+              {k}: <strong>{fmtNum(shownLast[k])}</strong>
             </span>
           )
         })}

@@ -451,6 +451,11 @@ a { color: var(--accent); }
 .size-buttons .btn.tiny { min-width: 30px; }
 .btn.ghost.on { border-color: var(--accent, #4f8cff); color: var(--accent, #4f8cff); }
 
+/* Quick date-range buttons (1M / 3M / … / 10Y) — a full-width row above the
+   From/To pickers so they wrap tidily on their own line. */
+.quick-ranges { display: flex; flex-wrap: wrap; gap: 4px; flex-basis: 100%; }
+.quick-ranges .btn.tiny { min-width: 38px; }
+
 /* Pack title header (shown on screen and in print) */
 .pack-title h2 { margin: 0; font-size: 22px; }
 .pack-title .muted { font-size: 13px; margin-top: 2px; }
