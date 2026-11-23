@@ -72,6 +72,10 @@ export default function StackedBarPanel({ chart, onSaved, xMin = null, xMax = nu
       for (const s of table.series) row[s.name] = s.values[i]
       return row
     })
+    // Always show years oldest→newest (left→right), whatever order the source
+    // spreadsheet had its columns in.
+    const yr = (v) => parseInt(String(v).match(/\d{4}/)?.[0] || '0', 10)
+    d.sort((a, b) => yr(a.year) - yr(b.year))
     return { data: d, keys: k }
   }, [table])
 
