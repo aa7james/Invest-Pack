@@ -28,6 +28,27 @@ function axisDate(iso) {
   return String(iso).slice(0, 4)
 }
 
+// Compound annual growth rate of one series over the rows currently shown:
+// (last / first) ^ (1/years) − 1. Only meaningful for positive level/index
+// series over a real time span, so we bail out otherwise (returns null).
+function cagrFor(data, key) {
+  let first = null, firstDate = null, last = null, lastDate = null
+  for (const r of data) { if (r[key] != null) { first = r[key]; firstDate = r.date; break } }
+  for (let i = data.length - 1; i >= 0; i--) {
+    if (data[i][key] != null) { last = data[i][key]; lastDate = data[i].date; break }
+  }
+  if (first == null || last == null || first <= 0 || last <= 0 || !firstDate || !lastDate) return null
+  const years = (new Date(lastDate) - new Date(firstDate)) / (365.25 * 24 * 3600 * 1000)
+  if (years < 0.5) return null
+  return { rate: Math.pow(last / first, 1 / years) - 1, from: firstDate, to: lastDate }
+}
+
+// "+12.6%" / "−3.1%" from a decimal rate.
+function fmtPct(rate) {
+  const p = rate * 100
+  return `${p >= 0 ? '+' : '−'}${Math.abs(p).toFixed(1)}%`
+}
+
 // Build unique, human-readable keys for a chart's series.
 function keysFor(series, instrumentsById) {
   const seen = new Map()
@@ -245,6 +266,29 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
       if (data[i][k] != null) { shownLast[k] = data[i][k]; break }
     }
   }
+
+  // Compound annual growth rate over the shown window — the pace of change per
+  // year, which the eye can't read off a slope. Only for level/index line charts
+  // (value + index); spreads/ratios/seasonals aren't growth series.
+  const showCagr = state.xKey === 'date' && (def.chart_type === 'value' || def.chart_type === 'index')
+  const cagr = {}
+  if (showCagr) {
+    for (const k of state.keys) { const c = cagrFor(data, k); if (c) cagr[k] = c }
+  }
+  const cagrKeys = Object.keys(cagr)
+  const cagrPeriod = cagrKeys.length
+    ? `${cagr[cagrKeys[0]].from.slice(0, 4)}–${cagr[cagrKeys[0]].to.slice(0, 4)}`
+    : ''
+  const CagrRow = () => (cagrKeys.length ? (
+    <div className="chart-cagr">
+      <span className="cagr-label">CAGR {cagrPeriod}:</span>
+      {cagrKeys.map((k) => (
+        <span className="cagr-item" key={k}>
+          {cagrKeys.length > 1 ? `${k} ` : ''}<strong>{fmtPct(cagr[k].rate)}</strong>/yr
+        </span>
+      ))}
+    </div>
+  ) : null)
 
   // Recharts drops a numeric domain bound if the other side is the string
   // 'auto', so when only one of min/max is set we fill the other from the data's
@@ -475,6 +519,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           )
         })}
       </div>
+      <CagrRow />
     </div>
   )
 }
