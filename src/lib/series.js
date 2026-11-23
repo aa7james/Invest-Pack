@@ -89,6 +89,27 @@ export async function buildValueSeries(series, anchorISO, range) {
     for (const p of pts) dateSet.add(p.date)
   }
   const dates = Array.from(dateSet).sort()
+
+  // Carry the last known value forward across gaps, but only within each series'
+  // own span (its first→last actual observation). A weekly/monthly series then
+  // reads as one continuous line on a daily axis instead of dropping out on the
+  // days it has no print. We never invent data before a series starts or after
+  // it ends — those stay blank.
+  for (const s of series) {
+    const m = perKey[s.key]
+    let firstIdx = -1
+    let lastIdx = -1
+    for (let i = 0; i < dates.length; i++) {
+      if (m.has(dates[i])) { if (firstIdx < 0) firstIdx = i; lastIdx = i }
+    }
+    if (firstIdx < 0) continue
+    let carried = null
+    for (let i = firstIdx; i <= lastIdx; i++) {
+      if (m.has(dates[i])) carried = m.get(dates[i])
+      else m.set(dates[i], carried)
+    }
+  }
+
   const data = dates.map((date) => {
     const row = { date }
     for (const s of series) row[s.key] = perKey[s.key].get(date) ?? null
