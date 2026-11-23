@@ -49,6 +49,11 @@ const RANGES = [
   { label: '10Y', months: 120 },
 ]
 
+// Charts that show a "vs inflation" comparison (SA ZAR price indices). The CAGR
+// caption on these also shows average SA inflation and the real (above-inflation)
+// pace over the same window. Add a title here to switch it on for another chart.
+const INFLATION_CHARTS = new Set(['SA Electricity Price Index'])
+
 // Start date for a quick range, measured back from the chart's latest point.
 function rangeStartISO(anchorISO, preset) {
   const end = anchorISO ? new Date(anchorISO) : new Date()
@@ -209,7 +214,8 @@ function PackItem({ chart, instrumentsById, anchorISO, onChanged, eager, drag, e
           <Lazy height={axis.height || 420} eager={eager}>
             <SeriesChart def={chart} range={chart.time_range || '1Y'} anchorISO={anchorISO}
               instrumentsById={instrumentsById} height={axis.height || 420} reloadKey={reloadKey}
-              xMin={axis.x_min} xMax={axis.x_max} yMin={axis.y_min} yMax={axis.y_max} />
+              xMin={axis.x_min} xMax={axis.x_max} yMin={axis.y_min} yMax={axis.y_max}
+              showInflation={INFLATION_CHARTS.has(chart.title)} />
           </Lazy>
           {isCrop && deliveriesInst && adjustmentsInst ? (
             <div className="manual-entry no-print">

@@ -11,6 +11,7 @@ import {
   buildVisitorsStack,
 } from '../lib/series'
 import { fmtNum } from '../lib/format'
+import { loadCPI, inflationRate } from '../lib/inflation'
 
 export const CHART_COLORS = [
   '#4f8cff', '#35c78a', '#e0a13a', '#e5674f', '#b06fe0',
@@ -64,8 +65,17 @@ function keysFor(series, instrumentsById) {
 }
 
 export default function SeriesChart({ def, range, anchorISO, instrumentsById, height = 280, reloadKey = 0,
-  xMin = null, xMax = null, yMin = null, yMax = null }) {
+  xMin = null, xMax = null, yMin = null, yMax = null, showInflation = false }) {
   const [state, setState] = useState({ loading: true, data: [], keys: [], error: null, last: {}, xKey: 'date', ticks: null, tickLabels: null, dual: null, stacked: false, bar: false, stackedBar: false, domainMax: null })
+  // SA CPI series (year-on-year %), loaded once when a chart opts into the
+  // inflation comparison. Null until it arrives; the chart renders without it.
+  const [cpiSeries, setCpiSeries] = useState(null)
+  useEffect(() => {
+    if (!showInflation) return
+    let alive = true
+    loadCPI().then((s) => { if (alive) setCpiSeries(s) }).catch(() => {})
+    return () => { alive = false }
+  }, [showInflation])
 
   useEffect(() => {
     let alive = true
@@ -279,16 +289,38 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
   const cagrPeriod = cagrKeys.length
     ? `${cagr[cagrKeys[0]].from.slice(0, 4)}–${cagr[cagrKeys[0]].to.slice(0, 4)}`
     : ''
-  const CagrRow = () => (cagrKeys.length ? (
-    <div className="chart-cagr">
-      <span className="cagr-label">CAGR {cagrPeriod}:</span>
-      {cagrKeys.map((k) => (
-        <span className="cagr-item" key={k}>
-          {cagrKeys.length > 1 ? `${k} ` : ''}<strong>{fmtPct(cagr[k].rate)}</strong>/yr
-        </span>
-      ))}
-    </div>
-  ) : null)
+
+  // Inflation comparison (opt-in, single-series level charts only): average SA
+  // inflation over the same window, and the "real" above-inflation pace.
+  const singleRate = cagrKeys.length === 1 ? cagr[cagrKeys[0]].rate : null
+  const infl = (showInflation && cpiSeries && cagrKeys.length === 1)
+    ? inflationRate(cpiSeries, cagr[cagrKeys[0]].from, cagr[cagrKeys[0]].to)
+    : null
+  const realRate = (singleRate != null && infl != null) ? (1 + singleRate) / (1 + infl) - 1 : null
+
+  const CagrRow = () => {
+    if (!cagrKeys.length) return null
+    if (infl != null && singleRate != null) {
+      return (
+        <div className="chart-cagr">
+          <span className="cagr-label">CAGR {cagrPeriod}:</span>
+          <span className="cagr-item">Price <strong>{fmtPct(singleRate)}</strong>/yr</span>
+          <span className="cagr-item">Inflation <strong>{fmtPct(infl)}</strong>/yr</span>
+          <span className="cagr-item">Real <strong>{fmtPct(realRate)}</strong>/yr</span>
+        </div>
+      )
+    }
+    return (
+      <div className="chart-cagr">
+        <span className="cagr-label">CAGR {cagrPeriod}:</span>
+        {cagrKeys.map((k) => (
+          <span className="cagr-item" key={k}>
+            {cagrKeys.length > 1 ? `${k} ` : ''}<strong>{fmtPct(cagr[k].rate)}</strong>/yr
+          </span>
+        ))}
+      </div>
+    )
+  }
 
   // Recharts drops a numeric domain bound if the other side is the string
   // 'auto', so when only one of min/max is set we fill the other from the data's
