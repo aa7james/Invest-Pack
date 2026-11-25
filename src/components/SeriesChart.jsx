@@ -1,14 +1,14 @@
 import { useEffect, useState } from 'react'
 import {
   ResponsiveContainer, ComposedChart, LineChart, AreaChart, Area, Line, Bar,
-  XAxis, YAxis, CartesianGrid, Tooltip,
+  XAxis, YAxis, CartesianGrid, Tooltip, ReferenceLine,
 } from 'recharts'
 import {
   buildValueSeries, buildSpreadSeries, buildIndexedSeries, buildNitrogenSpread,
   buildRatioSeries, buildCorrelation, buildSpongePremium, buildCornCompare, buildSeasonal,
   buildCropProgress, buildIqfRatio, buildProxyFeed, buildRolling12,
   buildOemShare, buildHireRolling, buildDailyAvg, buildPerVisitor, buildMacauYtd,
-  buildVisitorsStack,
+  buildVisitorsStack, buildFeedSellingYoY,
 } from '../lib/series'
 import { fmtNum } from '../lib/format'
 import { loadCPI, inflationRate } from '../lib/inflation'
@@ -137,6 +137,13 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
           const lag = def.chart_type === 'iqf_ratio_lag' ? 6 : 0
           res = await buildIqfRatio(sh?.instrument_id, po?.instrument_id, mz?.instrument_id,
             so?.instrument_id, st?.instrument_id, lag)
+        } else if (def.chart_type === 'feed_selling_yoy') {
+          const po = def.series.find((s) => s.role === 'poultry')
+          const mz = def.series.find((s) => s.role === 'maize')
+          const so = def.series.find((s) => s.role === 'soya')
+          const st = def.series.find((s) => s.role === 'feedstore')
+          res = await buildFeedSellingYoY(po?.instrument_id, mz?.instrument_id,
+            so?.instrument_id, st?.instrument_id)
         } else if (def.chart_type === 'seasonal') {
           res = await buildSeasonal(def.series[0].instrument_id)
         } else if (def.chart_type === 'nitrogen_spread') {
@@ -221,7 +228,7 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
             if (res.data[i][k] != null) { last[k] = res.data[i][k]; break }
           }
         }
-        setState({ loading: false, data: res.data, keys: res.keys, error: null, last, xKey: res.xKey || 'date', ticks: res.ticks || null, tickLabels: res.tickLabels || null, dual: res.dual || null, stacked: res.stacked || false, bar: res.bar || false, stackedBar: res.stackedBar || false, domainMax: res.domainMax || null })
+        setState({ loading: false, data: res.data, keys: res.keys, error: null, last, xKey: res.xKey || 'date', ticks: res.ticks || null, tickLabels: res.tickLabels || null, dual: res.dual || null, stacked: res.stacked || false, bar: res.bar || false, stackedBar: res.stackedBar || false, domainMax: res.domainMax || null, composed: res.composed || null, percent: res.percent || false })
       } catch (e) {
         if (alive) setState({ loading: false, data: [], keys: [], error: e.message || String(e), last: {} })
       }
@@ -350,6 +357,49 @@ export default function SeriesChart({ def, range, anchorISO, instrumentsById, he
     if (!Number.isFinite(lo)) { lo = 0; hi = 1 }
     if (barLike && lo > 0) lo = 0
     yDomainOv = [yMinV != null ? yMinV : lo, yMaxV != null ? yMaxV : hi]
+  }
+
+  // Composed % chart (e.g. Astral broiler feed vs selling price): one series as
+  // a filled area, the other as bars, on a single shared % axis with a zero line.
+  if (state.composed) {
+    const { area, bar } = state.composed
+    const AREA_C = '#e0a13a'   // feed — orange
+    const BAR_C = '#4f8cff'    // selling — blue
+    const pct = (v) => (v == null || Number.isNaN(v) ? '—' : `${v >= 0 ? '' : '−'}${Math.abs(v).toFixed(1)}%`)
+    return (
+      <div>
+        <div style={{ width: '100%', height }}>
+          <ResponsiveContainer>
+            <ComposedChart data={data} margin={{ top: 8, right: 16, bottom: 4, left: 0 }}>
+              <CartesianGrid stroke="#2a3550" strokeDasharray="3 3" />
+              <XAxis dataKey="date" tickFormatter={axisDate}
+                tick={{ fill: '#93a0bd', fontSize: 11 }} minTickGap={50} stroke="#2a3550" />
+              <YAxis tick={{ fill: '#93a0bd', fontSize: 11 }} stroke="#2a3550"
+                domain={yHasOverride ? yDomainOv : ['auto', 'auto']} allowDataOverflow={yHasOverride}
+                tickFormatter={(v) => `${Math.round(v)}%`} width={54} />
+              <Tooltip contentStyle={{ background: '#171e2e', border: '1px solid #2a3550', borderRadius: 8, fontSize: 12 }}
+                labelStyle={{ color: '#e7ecf5' }} labelFormatter={axisDate} formatter={pct} />
+              <ReferenceLine y={0} stroke="#5a6a8c" strokeWidth={1} />
+              {area.map((k) => (
+                <Area key={k} type="monotone" dataKey={k} stroke={AREA_C} fill={AREA_C}
+                  fillOpacity={0.6} strokeWidth={1.4} connectNulls isAnimationActive={false} />
+              ))}
+              {bar.map((k) => (
+                <Bar key={k} dataKey={k} fill={BAR_C} isAnimationActive={false} />
+              ))}
+            </ComposedChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="chart-legend">
+          {state.keys.map((k) => (
+            <span className="leg" key={k}>
+              <i style={{ background: area.includes(k) ? AREA_C : BAR_C }} />
+              {k}: <strong>{pct(shownLast[k])}</strong>
+            </span>
+          ))}
+        </div>
+      </div>
+    )
   }
 
   // Dual-axis chart (e.g. share price line + ratio bars on a second axis).

@@ -471,6 +471,39 @@ export async function buildIqfRatio(shareId, poultryId, maizeId, sspId, storedFe
   }
 }
 
+// Astral-style "broiler selling price vs feed price": the year-on-year (12-month)
+// % change of the proxy feed price (orange area) against the YoY % change of the
+// broiler selling price — the poultry/IQF price (blue bars) — monthly. Same two
+// series that drive the IQF/Feed valuation charts, shown as rates of change
+// rather than levels, on one shared % axis. (% change is scale-free, so the
+// poultry c/kg → R/kg conversion used elsewhere is irrelevant here.)
+export async function buildFeedSellingYoY(poultryId, maizeId, sspId, storedFeedId) {
+  const ids = [poultryId, maizeId, sspId, storedFeedId].filter((x) => x != null)
+  const obs = await fetchObservations(ids, null)
+  const poultry = monthlyLast(obs.get(poultryId) || [])
+  const proxy = computeProxyMonthly(
+    monthlyLast(obs.get(maizeId) || []), monthlyLast(obs.get(sspId) || []),
+    monthlyLast(obs.get(storedFeedId) || []),
+  )
+  const FEED = '% Change in broiler feed price'
+  const SELL = '% Change in broiler selling price'
+  const yoy = (map, m) => {
+    const prev = map.get(shiftMonth(m, 12))   // same month, one year earlier
+    const cur = map.get(m)
+    return (cur != null && prev != null && prev !== 0) ? (cur / prev - 1) * 100 : null
+  }
+  const months = Array.from(new Set([...proxy.keys(), ...poultry.keys()])).sort()
+  const data = months.map((m) => ({
+    date: `${m}-01`,
+    [FEED]: yoy(proxy, m),
+    [SELL]: yoy(poultry, m),
+  }))
+  return {
+    data, keys: [FEED, SELL], xKey: 'date',
+    composed: { area: [FEED], bar: [SELL] }, percent: true,
+  }
+}
+
 // Weekly maize crop progress. Two manual series hold the raw SAGIS inputs
 // (Prod deliveries + Adjustments, in tons). Per week: Week Total = deliveries +
 // adjustments; within a season (May start) we cumulate to the running Prog Total
